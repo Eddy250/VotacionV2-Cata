@@ -1,0 +1,29 @@
+# Configuración Apache para el Sistema de Votación CATA 2026
+Options -Indexes
+RewriteEngine On
+
+# 1. Proteger estrictamente archivos de bases de datos, logs y configuraciones
+<FilesMatch "\.(db|sqlite|log|ini|env|json|lock|bak)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order deny,allow
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# 2. Prioridad de archivos de índice
+DirectoryIndex index.html index.php
+
+# 3. Enrutar peticiones /api/... directamente hacia api.php
+RewriteCond %{REQUEST_URI} ^.*api/(.*)$ [NC]
+RewriteRule ^.*api/(.*)$ api.php?endpoint=$1 [QSA,L]
+
+# 4. Si el archivo o directorio existe físicamente (ej. assets/, static/img/), servirlo tal cual
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# 5. Enrutamiento para SPA de React
+RewriteRule ^ index.html [L]

@@ -1,0 +1,69 @@
+services:
+  # ====================================================
+  # SEDE PRINCIPAL (Puerto 8001)
+  # ====================================================
+  backend-principal:
+    build:
+      context: ./backend
+    container_name: cata_backend_principal
+    volumes:
+      # Datos persistentes
+      - cata_data_principal:/var/www/html/data
+      - cata_static_principal:/var/www/html/static
+    restart: unless-stopped
+    networks:
+      cata_net_principal:
+        aliases:
+          - backend_php
+
+  frontend-principal:
+    build:
+      context: ./frontend
+    container_name: cata_frontend_principal
+    ports:
+      - "8001:80"
+    depends_on:
+      - backend-principal
+    restart: unless-stopped
+    networks:
+      - cata_net_principal
+
+  # ====================================================
+  # SEDE SECUNDARIA (Puerto 8002)
+  # ====================================================
+  backend-secundaria:
+    build:
+      context: ./backend
+    container_name: cata_backend_secundaria
+    volumes:
+      - cata_data_secundaria:/var/www/html/data
+      - cata_static_secundaria:/var/www/html/static
+    restart: unless-stopped
+    networks:
+      cata_net_secundaria:
+        aliases:
+          - backend_php
+
+  frontend-secundaria:
+    build:
+      context: ./frontend
+    container_name: cata_frontend_secundaria
+    ports:
+      - "8002:80"
+    depends_on:
+      - backend-secundaria
+    restart: unless-stopped
+    networks:
+      - cata_net_secundaria
+
+# Volúmenes para persistir las bases de datos e imágenes de cada sede
+volumes:
+  cata_data_principal:
+  cata_static_principal:
+  cata_data_secundaria:
+  cata_static_secundaria:
+
+# Redes aisladas para que la sede 1 no vea los datos de la sede 2
+networks:
+  cata_net_principal:
+  cata_net_secundaria:

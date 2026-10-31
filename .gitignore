@@ -1,0 +1,20 @@
+# Dependencias de NodeJS y Build
+node_modules/
+*/node_modules/
+*/*/node_modules/
+dist/
+*/dist/
+
+# Archivos de entorno y logs
+*.log
+.env
+.env.local
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+
+# Respaldos
+.git_old/
+.git_root_backup/
+backend_git_backup/
