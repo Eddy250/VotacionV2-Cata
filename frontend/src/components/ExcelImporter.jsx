@@ -2,25 +2,34 @@ import React, { useState } from 'react';
 import * as XLSX from 'xlsx';
 import api from '../api';
 import { motion } from 'framer-motion';
-import { UploadCloud, FileSpreadsheet, CheckCircle2, AlertTriangle, Download, RefreshCw, Users, ShieldAlert, Sparkles } from 'lucide-react';
+import { UploadCloud, FileSpreadsheet, CheckCircle2, AlertTriangle, Download, RefreshCw, Users, ShieldAlert, Sparkles, Building2, Church } from 'lucide-react';
 
 const BLUE = '#1B3A8C';
 
 const ExcelImporter = ({ onImportFinished }) => {
   const [files, setFiles] = useState([]);
-  const [sedeDefault, setSedeDefault] = useState('Sede Principal');
+  const [selectedSede, setSelectedSede] = useState('Sede Central');
   const [parsing, setParsing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [parsedData, setParsedData] = useState(null);
   const [importResult, setImportResult] = useState(null);
   const [error, setError] = useState('');
 
+  // Cambiar sede seleccionada
+  const handleSelectSede = (sedeName) => {
+    setSelectedSede(sedeName);
+    setError('');
+    if (files.length > 0) {
+      parseExcelFiles(files, sedeName);
+    }
+  };
+
   // Manejar selección o arrastre de múltiples archivos
   const handleFileChange = (e) => {
     const selectedFiles = Array.from(e.target.files);
     if (!selectedFiles.length) return;
     setFiles(selectedFiles);
-    parseExcelFiles(selectedFiles, sedeDefault);
+    parseExcelFiles(selectedFiles, selectedSede);
   };
 
   // Procesar los múltiples archivos Excel
@@ -55,7 +64,6 @@ const ExcelImporter = ({ onImportFinished }) => {
         }
 
         if (headerRowIndex === -1) {
-          // Si no encontró por nombre, asumir fila 6 (índice 5) como en el formato CATA
           headerRowIndex = 5;
         }
 
@@ -102,10 +110,8 @@ const ExcelImporter = ({ onImportFinished }) => {
           const dni = colMap.dni !== -1 ? String(row[colMap.dni]).trim() : '';
           const ngs = colMap.ngs !== -1 ? String(row[colMap.ngs]).trim().toUpperCase() : '';
 
-          // Si la fila está vacía en datos principales, saltar
           if (!codOriginal && !apPaterno && !nombres && !dni) continue;
 
-          // Deduplicar si el alumno ya fue leído en otro archivo
           const identKey = dni || codOriginal;
           if (identKey && dniSet.has(identKey)) {
             continue;
@@ -131,7 +137,8 @@ const ExcelImporter = ({ onImportFinished }) => {
         totalArchivos: fileList.length,
         totalActivos: todosAlumnos.length,
         totalRetirados,
-        totalNoMatriculados
+        totalNoMatriculados,
+        sede: sedeName
       });
 
     } catch (err) {
@@ -142,7 +149,7 @@ const ExcelImporter = ({ onImportFinished }) => {
     }
   };
 
-  // Enviar lista limpia al backend para generar códigos y guardar
+  // Enviar lista limpia al backend para guardar en la BD aislada de la sede
   const handleGuardarEnPadrón = async () => {
     if (!parsedData || !parsedData.alumnos.length) return;
     setUploading(true);
@@ -150,7 +157,8 @@ const ExcelImporter = ({ onImportFinished }) => {
 
     try {
       const res = await api.post('/admin/importar-lote', {
-        sede_default: sedeDefault,
+        sede: selectedSede,
+        sede_default: selectedSede,
         alumnos: parsedData.alumnos
       });
 
@@ -165,14 +173,13 @@ const ExcelImporter = ({ onImportFinished }) => {
     }
   };
 
-  // Descargar Excel con los códigos secretos generados
+  // Descargar Excel con los códigos de votación
   const handleDescargarTicketsExcel = () => {
     if (!importResult || !importResult.alumnos) return;
 
-    // Crear arreglo formateado para Excel
     const dataExcel = importResult.alumnos.map((a, index) => ({
       'N°': index + 1,
-      'SEDE': a.sede || sedeDefault,
+      'SEDE': a.sede || selectedSede,
       'SALÓN / NGS': a.ngs || 'GENERAL',
       'DNI (CÓDIGO DE VOTACIÓN)': a.codigo_voto,
       'APELLIDOS Y NOMBRES': a.nombre,
@@ -181,46 +188,105 @@ const ExcelImporter = ({ onImportFinished }) => {
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(dataExcel);
-    // Configurar anchos de columna
     worksheet['!cols'] = [
-      { wch: 6 },  // N°
-      { wch: 18 }, // SEDE
-      { wch: 14 }, // NGS
-      { wch: 28 }, // DNI (CÓDIGO VOTO)
-      { wch: 38 }, // NOMBRES
-      { wch: 14 }, // DNI
-      { wch: 18 }  // COD ORIG
+      { wch: 6 },
+      { wch: 18 },
+      { wch: 14 },
+      { wch: 28 },
+      { wch: 38 },
+      { wch: 14 },
+      { wch: 18 }
     ];
 
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Códigos de Sufragio");
-    XLSX.writeFile(workbook, `PADRON_CON_CODIGOS_CATA_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.utils.book_append_sheet(workbook, worksheet, `Padrón ${selectedSede}`);
+    XLSX.writeFile(workbook, `PADRON_${selectedSede.replace(/\s+/g, '_').toUpperCase()}_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
+
+  const isCentral = selectedSede === 'Sede Central';
 
   return (
     <div className="space-y-8">
-      {/* Encabezado y configuración de Sede */}
-      <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+      {/* 2 Botones Críticos de Selección de Sede */}
+      <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-100 shadow-sm space-y-4">
         <div>
-          <h3 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
-            <FileSpreadsheet className="w-7 h-7" style={{ color: BLUE }} /> Importación Multi-Excel
+          <h3 className="text-xl md:text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
+            <FileSpreadsheet className="w-7 h-7" style={{ color: BLUE }} />
+            Importador de Padrón Electoral Multi-Excel
           </h3>
-          <p className="text-slate-500 text-sm mt-1">
-            Sube múltiples archivos de salones, grados o secciones a la vez. El sistema filtrará a los retirados y asignará sus DNIs como códigos directos de votación.
+          <p className="text-slate-500 text-xs sm:text-sm mt-1">
+            Selecciona la sede a la que pertenece el lote de archivos. Cada sede se guarda en su base de datos propia e independiente:
           </p>
         </div>
 
-        <div className="w-full md:w-auto">
-          <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Sede de los archivos:</label>
-          <input 
-            type="text" 
-            value={sedeDefault} 
-            onChange={(e) => setSedeDefault(e.target.value)}
-            className="w-full md:w-64 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none transition-colors"
-            onFocus={e => e.target.style.borderColor = BLUE}
-            onBlur={e => e.target.style.borderColor = '#E2E8F0'}
-            placeholder="Ej: Sede Juliaca"
-          />
+        {/* Los 2 Botones de Sede */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+          {/* Botón 1: Central */}
+          <button
+            type="button"
+            onClick={() => handleSelectSede('Sede Central')}
+            className={`p-5 rounded-2xl border-2 text-left transition-all cursor-pointer flex items-center justify-between ${
+              isCentral
+                ? 'border-blue-600 bg-blue-50/70 shadow-sm ring-2 ring-blue-500/20'
+                : 'border-slate-200 hover:border-blue-300 hover:bg-slate-50'
+            }`}
+          >
+            <div className="flex items-center gap-3.5">
+              <div className={`p-3 rounded-xl ${isCentral ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                <Building2 size={24} />
+              </div>
+              <div>
+                <span className="text-[11px] font-black uppercase tracking-wider text-blue-700">Módulo Aislado</span>
+                <h4 className="font-black text-slate-900 text-base">Cargar Padrón Sede Central</h4>
+                <p className="text-xs text-slate-500 mt-0.5">Destino: <code className="bg-white px-1.5 py-0.5 rounded border text-[11px] font-mono">central.db</code> (~1000 alumnos)</p>
+              </div>
+            </div>
+            {isCentral && (
+              <span className="p-1 rounded-full bg-blue-600 text-white flex-shrink-0">
+                <CheckCircle2 size={18} />
+              </span>
+            )}
+          </button>
+
+          {/* Botón 2: Jerusalén */}
+          <button
+            type="button"
+            onClick={() => handleSelectSede('Sede Jerusalén')}
+            className={`p-5 rounded-2xl border-2 text-left transition-all cursor-pointer flex items-center justify-between ${
+              !isCentral
+                ? 'border-emerald-600 bg-emerald-50/70 shadow-sm ring-2 ring-emerald-500/20'
+                : 'border-slate-200 hover:border-emerald-300 hover:bg-slate-50'
+            }`}
+          >
+            <div className="flex items-center gap-3.5">
+              <div className={`p-3 rounded-xl ${!isCentral ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                <Church size={24} />
+              </div>
+              <div>
+                <span className="text-[11px] font-black uppercase tracking-wider text-emerald-700">Módulo Aislado</span>
+                <h4 className="font-black text-slate-900 text-base">Cargar Padrón Sede Jerusalén</h4>
+                <p className="text-xs text-slate-500 mt-0.5">Destino: <code className="bg-white px-1.5 py-0.5 rounded border text-[11px] font-mono">jerusalen.db</code> (~1000 alumnos)</p>
+              </div>
+            </div>
+            {!isCentral && (
+              <span className="p-1 rounded-full bg-emerald-600 text-white flex-shrink-0">
+                <CheckCircle2 size={18} />
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* Indicador de sede activa para la subida */}
+        <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span className="text-xs font-bold text-slate-700">
+              Sede activa seleccionada: <strong className="text-slate-900 underline">{selectedSede}</strong>
+            </span>
+          </div>
+          <span className="text-[11px] font-bold text-slate-500">
+            Los datos se validarán estrictamente para esta sede.
+          </span>
         </div>
       </div>
 
@@ -234,9 +300,7 @@ const ExcelImporter = ({ onImportFinished }) => {
       {/* Zona de Arrastrar y Soltar (Dropzone) */}
       <div 
         className="relative border-2 border-dashed rounded-3xl p-10 text-center transition-all group cursor-pointer"
-        style={{ borderColor: '#C7D9FF', backgroundColor: '#EEF4FF' }}
-        onMouseEnter={e => e.currentTarget.style.borderColor = BLUE}
-        onMouseLeave={e => e.currentTarget.style.borderColor = '#C7D9FF'}
+        style={{ borderColor: isCentral ? '#C7D9FF' : '#A7F3D0', backgroundColor: isCentral ? '#EEF4FF' : '#ECFDF5' }}
       >
         <input 
           type="file" 
@@ -246,146 +310,142 @@ const ExcelImporter = ({ onImportFinished }) => {
           className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
         />
         <div className="w-16 h-16 mx-auto bg-white rounded-2xl flex items-center justify-center shadow-sm mb-4 group-hover:scale-110 transition-transform">
-          <UploadCloud className="w-8 h-8" style={{ color: BLUE }} />
+          <UploadCloud className="w-8 h-8" style={{ color: isCentral ? BLUE : '#059669' }} />
         </div>
-        <h4 className="text-lg font-bold text-slate-800">
-          Arrastra aquí tus archivos de Excel (.xlsx / .xls)
+        <h4 className="text-lg font-black text-slate-800">
+          Arrastra los archivos Excel (.xlsx) de <span className={isCentral ? 'text-blue-700' : 'text-emerald-700'}>{selectedSede}</span> aquí
         </h4>
-        <p className="text-slate-500 text-sm mt-1 max-w-md mx-auto">
-          Puedes soltar 1, 10 o 20 archivos al mismo tiempo (uno por cada salón o sección).
+        <p className="text-slate-500 text-xs sm:text-sm mt-1 max-w-md mx-auto">
+          Puedes seleccionar hasta 20 archivos a la vez (salones, secciones o grados). El sistema filtrará retirados y duplicados automáticamente.
         </p>
-        <span 
-          className="inline-block mt-4 px-4 py-1.5 text-white font-bold text-xs rounded-full shadow-sm transition-colors"
-          style={{ backgroundColor: BLUE }}
-        >
-          Examinar Archivos
-        </span>
+        <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-white rounded-full text-xs font-bold shadow-xs text-slate-700 border border-slate-200">
+          Explorar archivos en tu equipo
+        </div>
       </div>
 
+      {/* Estado de Lectura / Parsing */}
       {parsing && (
-        <div className="p-8 text-center text-slate-500 font-bold animate-pulse">
-          <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" style={{ color: BLUE }} />
-          Leyendo y analizando todos los archivos Excel...
+        <div className="p-6 bg-blue-50 border border-blue-200 rounded-2xl flex items-center justify-center gap-3 text-blue-800 font-bold text-sm">
+          <RefreshCw className="w-5 h-5 animate-spin" />
+          <span>Analizando y limpiando archivos Excel de {selectedSede}...</span>
         </div>
       )}
 
-      {/* Vista Previa Inteligente */}
-      {parsedData && !parsing && (
-        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-              <div className="p-3.5 rounded-xl" style={{ backgroundColor: '#EEF4FF', color: BLUE }}>
-                <FileSpreadsheet className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-xs uppercase font-bold text-slate-400">Archivos Procesados</p>
-                <h4 className="text-2xl font-black text-slate-800">{parsedData.totalArchivos}</h4>
-              </div>
+      {/* Resumen del Lote Parseado */}
+      {parsedData && !importResult && (
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white p-6 md:p-8 rounded-3xl border border-slate-100 shadow-sm space-y-6"
+        >
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-100">
+            <div>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-blue-100 text-blue-800 mb-1.5">
+                <CheckCircle2 size={13} /> Lote Listo para {selectedSede}
+              </span>
+              <h4 className="text-xl font-black text-slate-800">Resumen de Filtrado de Datos</h4>
+              <p className="text-slate-500 text-xs">Revisa las cifras antes de guardar definitivamente en la base de datos</p>
             </div>
+            <button
+              onClick={handleGuardarEnPadrón}
+              disabled={uploading}
+              className="w-full sm:w-auto px-6 py-3 text-white rounded-xl font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+              style={{ backgroundColor: isCentral ? BLUE : '#059669' }}
+            >
+              {uploading ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" /> Guardando en {selectedSede}...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-4 h-4" /> Guardar en Padrón de {selectedSede}
+                </>
+              )}
+            </button>
+          </div>
 
-            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-              <div className="p-3.5 bg-emerald-50 text-emerald-600 rounded-xl">
-                <CheckCircle2 className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-xs uppercase font-bold text-slate-400">Alumnos Activos Listos</p>
-                <h4 className="text-2xl font-black text-emerald-600">{parsedData.totalActivos}</h4>
-              </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="p-4 rounded-2xl bg-blue-50/70 border border-blue-100">
+              <p className="text-xs font-bold text-blue-600 uppercase">Archivos Leídos</p>
+              <h5 className="text-2xl font-black text-blue-950 mt-1">{parsedData.totalArchivos}</h5>
             </div>
-
-            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-              <div className="p-3.5 bg-amber-50 text-amber-600 rounded-xl">
-                <ShieldAlert className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-xs uppercase font-bold text-slate-400">Filtrados (Retirados/No Mat.)</p>
-                <h4 className="text-2xl font-black text-amber-600">
-                  {parsedData.totalRetirados + parsedData.totalNoMatriculados}
-                </h4>
-              </div>
+            <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-100">
+              <p className="text-xs font-bold text-emerald-600 uppercase">Alumnos Habilitados</p>
+              <h5 className="text-2xl font-black text-emerald-950 mt-1">{parsedData.totalActivos}</h5>
+            </div>
+            <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-100">
+              <p className="text-xs font-bold text-amber-600 uppercase">Retirados Omitidos</p>
+              <h5 className="text-2xl font-black text-amber-950 mt-1">{parsedData.totalRetirados}</h5>
+            </div>
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+              <p className="text-xs font-bold text-slate-600 uppercase">No Matriculados</p>
+              <h5 className="text-2xl font-black text-slate-900 mt-1">{parsedData.totalNoMatriculados}</h5>
             </div>
           </div>
 
-          {/* Tabla de muestra */}
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-              <h4 className="text-sm font-bold text-slate-700">Muestra de los primeros estudiantes detectados:</h4>
-              <span className="text-xs font-semibold text-slate-400">Total: {parsedData.totalActivos} alumnos</span>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="bg-slate-50 text-slate-500 uppercase text-xs font-bold border-b border-slate-100">
-                    <th className="p-4">DNI</th>
-                    <th className="p-4">Cód. Original</th>
-                    <th className="p-4">Apellidos y Nombres</th>
-                    <th className="p-4">Salón (NGS)</th>
-                    <th className="p-4">Sede</th>
-                    <th className="p-4">Archivo</th>
+          {/* Vista previa de los primeros 5 alumnos */}
+          <div>
+            <h5 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Vista Previa de Alumnos ({selectedSede}):</h5>
+            <div className="overflow-x-auto rounded-xl border border-slate-100">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider">
+                  <tr>
+                    <th className="py-2.5 px-3">DNI / Código</th>
+                    <th className="py-2.5 px-3">Apellidos y Nombres</th>
+                    <th className="py-2.5 px-3">Grado/Salón</th>
+                    <th className="py-2.5 px-3">Sede Destino</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-                  {parsedData.alumnos.slice(0, 8).map((al, i) => (
-                    <tr key={i} className="hover:bg-slate-50/80">
-                      <td className="p-4 font-mono font-bold" style={{ color: BLUE }}>{al.dni || '-'}</td>
-                      <td className="p-4 font-mono text-slate-500">{al.codigo_original || '-'}</td>
-                      <td className="p-4 font-bold">{al.ap_paterno} {al.ap_materno}, {al.nombres}</td>
-                      <td className="p-4"><span className="px-2.5 py-1 rounded-lg text-xs font-bold" style={{ backgroundColor: '#EEF4FF', color: BLUE }}>{al.ngs || 'GENERAL'}</span></td>
-                      <td className="p-4 text-slate-500">{al.sede}</td>
-                      <td className="p-4 text-xs text-slate-400 truncate max-w-[150px]">{al.archivo_origen}</td>
+                <tbody className="divide-y divide-slate-100">
+                  {parsedData.alumnos.slice(0, 5).map((al, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50/80">
+                      <td className="py-2 px-3 font-mono font-bold text-slate-700">{al.dni || al.codigo_original || 'Auto'}</td>
+                      <td className="py-2 px-3 font-bold text-slate-800">{al.ap_paterno} {al.ap_materno}, {al.nombres}</td>
+                      <td className="py-2 px-3 text-slate-600">{al.ngs || '-'}</td>
+                      <td className="py-2 px-3 font-bold text-blue-900">{selectedSede}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-
-            {/* Botón de Confirmación */}
-            <div className="p-6 bg-slate-50/50 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4">
-              <p className="text-xs text-slate-500">
-                Al confirmar, el sistema registrará a los estudiantes vinculando su <strong>DNI como código directo de votación</strong>.
+            {parsedData.alumnos.length > 5 && (
+              <p className="text-[11px] text-slate-400 mt-2 text-right">
+                y {parsedData.alumnos.length - 5} alumnos más listos para registrarse.
               </p>
-              <button 
-                onClick={handleGuardarEnPadrón}
-                disabled={uploading}
-                className="w-full sm:w-auto px-8 py-3.5 text-white font-extrabold rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                style={{ backgroundColor: BLUE }}
-                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#142D6E'}
-                onMouseLeave={e => e.currentTarget.style.backgroundColor = BLUE}
-              >
-                {uploading ? (
-                  <>Guardando en Padrón...</>
-                ) : (
-                  <>
-                    <Sparkles className="w-5 h-5" /> Confirmar e Importar al Padrón ({parsedData.totalActivos})
-                  </>
-                )}
-              </button>
-            </div>
+            )}
           </div>
         </motion.div>
       )}
 
-      {/* Resultado Exitoso y Botón de Descarga */}
+      {/* Éxito de Importación */}
       {importResult && (
-        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="p-8 border rounded-3xl shadow-sm text-center" style={{ backgroundColor: '#EEF4FF', borderColor: '#C7D9FF' }}>
-          <div className="w-16 h-16 mx-auto bg-white rounded-full flex items-center justify-center mb-4 shadow-sm">
-            <CheckCircle2 className="w-9 h-9" style={{ color: BLUE }} />
+        <motion.div
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-emerald-50 border-2 border-emerald-300 rounded-3xl p-6 md:p-8 space-y-4"
+        >
+          <div className="flex items-center gap-3 text-emerald-800">
+            <CheckCircle2 className="w-8 h-8 text-emerald-600 flex-shrink-0" />
+            <div>
+              <h4 className="text-xl font-black">¡Padrón de {selectedSede} Importado con Éxito!</h4>
+              <p className="text-xs text-emerald-700">
+                Se guardaron <strong>{importResult.insertados}</strong> alumnos nuevos y se actualizaron <strong>{importResult.actualizados}</strong> en la base de datos de {selectedSede}.
+              </p>
+            </div>
           </div>
-          <h3 className="text-2xl font-black" style={{ color: BLUE }}>¡Padrón Electoral Actualizado Exitosamente!</h3>
-          <p className="text-sm mt-2 max-w-xl mx-auto font-medium" style={{ color: '#1B3A8C99' }}>
-            Se registraron <strong>{importResult.insertados}</strong> estudiantes nuevos con sus DNIs habilitados para votar y se actualizaron <strong>{importResult.actualizados}</strong> ya existentes.
-          </p>
 
-          <div className="mt-6 flex flex-col sm:flex-row justify-center gap-4">
-            <button 
+          <div className="pt-2 flex flex-wrap gap-3">
+            <button
               onClick={handleDescargarTicketsExcel}
-              className="px-8 py-4 text-white font-black text-base rounded-2xl shadow-xl transition-all flex items-center justify-center gap-3"
-              style={{ backgroundColor: BLUE }}
-              onMouseEnter={e => e.currentTarget.style.backgroundColor = '#142D6E'}
-              onMouseLeave={e => e.currentTarget.style.backgroundColor = BLUE}
+              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-sm transition-colors cursor-pointer"
             >
-              <Download className="w-5 h-5 stroke-[2.5]" /> Descargar Padrón con Códigos de Votación (DNI)
+              <Download size={15} /> Descargar Padrón con Códigos (.xlsx)
+            </button>
+            <button
+              onClick={() => { setFiles([]); setParsedData(null); setImportResult(null); }}
+              className="px-5 py-2.5 bg-white border border-emerald-300 text-emerald-800 hover:bg-emerald-100 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+            >
+              Cargar otro archivo
             </button>
           </div>
         </motion.div>

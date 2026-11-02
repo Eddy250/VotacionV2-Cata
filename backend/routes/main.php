@@ -28,17 +28,37 @@ function handle_login() {
         return;
     }
     $codigo = trim($input['codigo']);
-    $voter = getVoterByCodigo($codigo);
+
+    // Sede de la cabina actual
+    $activeSede = get_active_sede();
+    $slug = normalize_sede_slug($activeSede);
+    $sedeName = normalize_sede_name($slug);
+    set_active_db($slug);
+
+    $voter = getVoterByCodigo($codigo, $slug);
     if (!$voter) {
+        // Verificar si el alumno pertenece a la otra sede para guiarlo
+        $otherSlug = ($slug === 'central') ? 'jerusalen' : 'central';
+        $otherName = normalize_sede_name($otherSlug);
+        $otherVoter = getVoterByCodigo($codigo, $otherSlug);
+        if ($otherVoter) {
+            http_response_code(403);
+            echo json_encode([
+                'error' => "El estudiante {$otherVoter['nombre']} está registrado en {$otherName}. Por favor dirígete a una cabina asignada a {$otherName} para emitir tu voto."
+            ]);
+            return;
+        }
         http_response_code(404);
-        echo json_encode(['error' => 'DNI o código no encontrado en el padrón electoral. Consulta con el docente o mesa de votación.']);
+        echo json_encode(['error' => "DNI no encontrado en el padrón de {$sedeName}. Consulta con la mesa de votación."]);
         return;
     }
+
     if ($voter['ha_votado']) {
         http_response_code(403);
         echo json_encode(['error' => 'Este DNI ya ha sido utilizado para votar. El voto es personal y único.']);
         return;
     }
+
     echo json_encode([
         'success' => true,
         'message' => 'Login exitoso.',
@@ -47,7 +67,8 @@ function handle_login() {
             'dni' => $voter['dni'] ?? null,
             'codigo_original' => $voter['codigo_original'] ?? null,
             'nombre' => $voter['nombre'],
-            'sede' => $voter['sede'] ?? 'Sede Principal',
+            'sede' => $sedeName,
+            'sede_slug' => $slug,
             'ngs' => $voter['ngs'] ?? '',
             'email' => $voter['email'] ?? null
         ]
@@ -69,7 +90,7 @@ function handle_get_candidatos() {
         echo json_encode(['error' => 'Método no permitido']);
         return;
     }
-    $sede = isset($_GET['sede']) ? trim($_GET['sede']) : null;
+    $sede = isset($_GET['sede']) ? trim($_GET['sede']) : get_active_sede();
     $candidatos = getAllCandidatos($sede);
     $resultado = [];
     $fotoFields = ['foto', 'logo', 'alcalde_foto', 'teniente_foto',
@@ -86,12 +107,12 @@ function handle_get_candidatos() {
             'regidor_educacion' => $c['regidor_educacion'] ?? null,
             'regidor_salud' => $c['regidor_salud'] ?? null,
             'regidor_derechos' => $c['regidor_derechos'] ?? null,
-            'sede' => $c['sede'] ?? 'Sede Principal',
-            'propuestas_pdf' => !empty($c['propuestas_pdf']) ? ('/static/' . ltrim(preg_replace('#^/*(static/)+#i', '', $c['propuestas_pdf']), '/')) : null,
+            'propuestas_pdf' => $c['propuestas_pdf'] ?? null,
+            'sede' => $c['sede'] ?? normalize_sede_name($sede),
         ];
-        foreach ($fotoFields as $field) {
-            $val = $c[$field] ?? null;
-            $item[$field] = $val ? ('/static/' . ltrim(preg_replace('#^/*(static/)+#i', '', $val), '/')) : null;
+        foreach ($fotoFields as $ff) {
+            $val = $c[$ff] ?? null;
+            $item[$ff] = $val ? (strpos($val, 'static/') === 0 ? "/{$val}" : "/static/{$val}") : null;
         }
         $resultado[] = $item;
     }
@@ -105,7 +126,7 @@ function handle_voto() {
         return;
     }
 
-    // 1. Validar estado general de la elección
+    // Validar estado general de la elección
     $infoEleccion = getInfoEleccion();
     if (!$infoEleccion['permite_voto']) {
         http_response_code(403);
@@ -118,43 +139,53 @@ function handle_voto() {
     }
 
     $input = json_decode(file_get_contents('php://input'), true);
-    if (!$input) {
+    if (!isset($input['voter_codigo']) || !isset($input['candidato_id'])) {
         http_response_code(400);
-        echo json_encode(['error' => 'Faltan datos en la solicitud.']);
-        return;
-    }
-    $voter_codigo = trim($input['voter_codigo'] ?? '');
-    $candidato_id = isset($input['candidato_id']) ? (int)$input['candidato_id'] : null;
-
-    if ($voter_codigo === '' || $candidato_id === null) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Código de votante o candidato faltante.']);
+        echo json_encode(['error' => 'Faltan parámetros requeridos']);
         return;
     }
 
-    $voter = getVoterByCodigo($voter_codigo);
+    $voter_codigo = trim($input['voter_codigo']);
+    $candidato_id = (int)$input['candidato_id'];
+
+    // Determinar la sede del votante
+    $activeSede = get_active_sede();
+    $voter = getVoterByCodigo($voter_codigo, $activeSede);
     if (!$voter) {
-        http_response_code(403);
-        echo json_encode(['error' => 'Estudiante no encontrado en el padrón.']);
+        // Chequear la otra sede
+        $otherSlug = ($activeSede === 'central') ? 'jerusalen' : 'central';
+        $voter = getVoterByCodigo($voter_codigo, $otherSlug);
+        if ($voter) {
+            $activeSede = $otherSlug;
+        }
+    }
+
+    if (!$voter) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Estudiante no encontrado.']);
         return;
     }
+
+    $voterSedeSlug = normalize_sede_slug($voter['sede'] ?? $activeSede);
+    set_active_db($voterSedeSlug);
+    $pdo = get_db_connection($voterSedeSlug);
+
     if ($voter['ha_votado']) {
         http_response_code(403);
         echo json_encode(['error' => 'Este estudiante ya ha ejercido su voto anteriormente.']);
         return;
     }
-    $candidato = getCandidatoById($candidato_id);
+
+    $candidato = getCandidatoById($candidato_id, $voterSedeSlug);
     if (!$candidato) {
         http_response_code(404);
-        echo json_encode(['error' => 'Candidato no válido.']);
+        echo json_encode(['error' => 'Candidato no válido para esta sede.']);
         return;
     }
 
     $codigoReal = $voter['codigo'];
-    global $pdo;
 
     // Protección de Concurrencia y Cola de Reintento Atómico
-    // Soporta múltiples PCs escribiendo en simultáneo sin bloqueos de base de datos
     $maxIntentos = 10;
     $votoExitoso = false;
 
@@ -176,8 +207,8 @@ function handle_voto() {
                 return;
             }
 
-            insertVoto($codigoReal, $candidato_id, $voter['sede'] ?? null, $voter['ngs'] ?? null);
-            setVoterVoted($codigoReal);
+            insertVoto($codigoReal, $candidato_id, $voterSedeSlug, $voter['ngs'] ?? null);
+            setVoterVoted($codigoReal, $voterSedeSlug);
             $pdo->commit();
             $votoExitoso = true;
             break;
@@ -186,12 +217,10 @@ function handle_voto() {
                 $pdo->rollBack();
             }
             $msg = $e->getMessage();
-            // Si la base de datos está ocupada con otra PC (busy / locked), esperar turno en cola de reintentos
             if (strpos($msg, 'database is locked') !== false || strpos($msg, 'busy') !== false) {
-                usleep(rand(30000, 100000)); // Esperar entre 30ms y 100ms
+                usleep(rand(30000, 100000));
                 continue;
             }
-            // Si se detecta llave duplicada (intento concurrente desde dos pestañas/PCs del mismo estudiante)
             if (strpos($msg, 'UNIQUE') !== false || strpos($msg, 'Duplicate') !== false) {
                 http_response_code(403);
                 echo json_encode(['error' => 'Este estudiante ya ha ejercido su voto anteriormente.']);
@@ -217,28 +246,29 @@ function handle_voto() {
                 'voter_email' => $voter['email'],
                 'voter_codigo' => $voter['codigo'],
                 'candidato_nombre' => $candidato['nombre'],
-                'sede' => $voter['sede'] ?? '',
-                'ngs' => $voter['ngs'] ?? ''
+                'sede' => normalize_sede_name($voterSedeSlug),
+                'ngs' => $voter['ngs'] ?? '',
+                'fecha' => date('Y-m-d H:i:s')
             ]);
             $ch = curl_init(N8N_WEBHOOK_URL);
-            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "POST");
             curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Content-Type: application/json',
-                'Content-Length: ' . strlen($payload)
-            ]);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 2);
-            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 1);
-            curl_exec($ch);
-            curl_close($ch);
-        } catch (Exception $ex) {
-            // Silencioso
-        }
+            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+            curl_setopt($ch, CURLOPT_TIMEOUT_MS, 500);
+            curl_setopt($ch, CURLOPT_NOSIGNAL, 1);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, false);
+            @curl_exec($ch);
+            @curl_close($ch);
+        } catch (Exception $ignored) {}
     }
 
     echo json_encode([
         'success' => true,
-        'message' => '¡Tu voto ha sido registrado correctamente!'
+        'message' => 'Voto registrado exitosamente.',
+        'voter' => [
+            'codigo' => $voter['codigo'],
+            'nombre' => $voter['nombre'],
+            'sede' => normalize_sede_name($voterSedeSlug),
+            'ha_votado' => true
+        ]
     ]);
 }

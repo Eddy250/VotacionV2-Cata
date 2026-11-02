@@ -100,13 +100,13 @@ function handle_admin_importar_lote() {
         return;
     }
 
-    $sedeDefault = !empty($input['sede_default']) ? trim($input['sede_default']) : 'Sede Principal';
+    $sedeDefault = !empty($input['sede']) ? trim($input['sede']) : (!empty($input['sede_default']) ? trim($input['sede_default']) : 'Sede Central');
 
     try {
         $resultado = importarLoteAlumnos($input['alumnos'], $sedeDefault);
         echo json_encode([
             'success' => true,
-            'message' => "Proceso completado: {$resultado['insertados']} alumnos nuevos registrados con códigos secretos y {$resultado['actualizados']} actualizados.",
+            'message' => "Proceso completado en {$resultado['sede']}: {$resultado['insertados']} alumnos nuevos registrados y {$resultado['actualizados']} actualizados.",
             'resultado' => $resultado
         ]);
     } catch (Exception $e) {
@@ -169,7 +169,8 @@ function handle_admin_candidatos() {
     $method = $_SERVER['REQUEST_METHOD'];
 
     if ($method === 'GET') {
-        $candidatos = getAllCandidatos();
+        $sede = isset($_GET['sede']) ? trim($_GET['sede']) : 'todos';
+        $candidatos = getAllCandidatos($sede);
         $resultado = [];
         foreach ($candidatos as $c) {
             $resultado[] = _candidato_to_response($c);
@@ -351,7 +352,8 @@ function handle_export_audit() {
 
     fputcsv($salida, ['CÓDIGO_SECRETO', 'DNI', 'CÓD_ORIGINAL', 'APELLIDOS_Y_NOMBRES', 'SEDE', 'SALON_NGS', 'ESTADO_VOTO', 'FECHA_HORA_VOTO']);
 
-    $voters = getAllVoters();
+    $sede = isset($_GET['sede']) ? trim($_GET['sede']) : 'todos';
+    $voters = getAllVoters($sede);
     foreach ($voters as $v) {
         fputcsv($salida, [
             $v['codigo'],

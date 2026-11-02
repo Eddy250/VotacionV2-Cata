@@ -1,10 +1,17 @@
 <?php
-// models.php - Capa de datos principal
+// models.php - Capa de datos principal y router de base de datos modular
 require_once __DIR__ . '/config.php';
 
-function db_query($sql, $params = []) {
+function set_active_db($sede) {
     global $pdo;
-    $stmt = $pdo->prepare($sql);
+    $pdo = get_db_connection($sede);
+    return $pdo;
+}
+
+function db_query($sql, $params = [], $sede = null) {
+    global $pdo;
+    $db = $sede ? get_db_connection($sede) : ($pdo ?: get_db_connection());
+    $stmt = $db->prepare($sql);
     $stmt->execute($params);
     return $stmt;
 }
@@ -16,6 +23,6 @@ require_once __DIR__ . '/models/VoteModel.php';
 require_once __DIR__ . '/models/Schema.php';
 require_once __DIR__ . '/models/ElectionModel.php';
 
-// Inicializar esquema automáticamente
+// Inicializar esquema automáticamente en ambas sedes
 actualizarEsquemaBD();
 sembrarDatosDePrueba();

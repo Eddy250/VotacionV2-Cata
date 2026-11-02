@@ -3,17 +3,29 @@
 // MÓDULO: CANDIDATOS (Listas Electorales)
 // ==========================================
 
+function get_candidate_sede($id) {
+    $c = db_query('SELECT id FROM candidatos WHERE id = :id LIMIT 1', ['id' => $id], 'central')->fetch();
+    if ($c) return 'central';
+    $j = db_query('SELECT id FROM candidatos WHERE id = :id LIMIT 1', ['id' => $id], 'jerusalen')->fetch();
+    if ($j) return 'jerusalen';
+    return get_active_sede();
+}
+
 function getAllCandidatos($sede = null) {
-    if ($sede && $sede !== 'todos') {
-        $stmt = db_query('SELECT * FROM candidatos WHERE sede = :sede OR nombre LIKE "%Blanco%" ORDER BY id ASC', ['sede' => $sede]);
-        return $stmt->fetchAll();
+    if ($sede === 'todos') {
+        $cCentral = db_query('SELECT * FROM candidatos ORDER BY id ASC', [], 'central')->fetchAll();
+        $cJeru = db_query('SELECT * FROM candidatos ORDER BY id ASC', [], 'jerusalen')->fetchAll();
+        return array_merge($cCentral, $cJeru);
     }
-    $stmt = db_query('SELECT * FROM candidatos ORDER BY id ASC');
+
+    $targetSede = $sede ? normalize_sede_slug($sede) : get_active_sede();
+    $stmt = db_query('SELECT * FROM candidatos ORDER BY id ASC', [], $targetSede);
     return $stmt->fetchAll();
 }
 
-function getCandidatoById($id) {
-    $stmt = db_query('SELECT * FROM candidatos WHERE id = :id LIMIT 1', ['id' => $id]);
+function getCandidatoById($id, $sede = null) {
+    $targetSede = $sede ? normalize_sede_slug($sede) : get_candidate_sede($id);
+    $stmt = db_query('SELECT * FROM candidatos WHERE id = :id LIMIT 1', ['id' => $id], $targetSede);
     return $stmt->fetch();
 }
 
@@ -25,7 +37,6 @@ function _sanitize_relative_path($path) {
 }
 
 function insertCandidato($nombre, $descripcion = null, $foto = null, $extras = []) {
-    global $pdo;
     $foto      = _sanitize_relative_path($foto);
     $slogan    = $extras['slogan'] ?? null;
     $logo      = _sanitize_relative_path($extras['logo'] ?? null);
@@ -41,32 +52,38 @@ function insertCandidato($nombre, $descripcion = null, $foto = null, $extras = [
     $regidor_salud_foto = _sanitize_relative_path($extras['regidor_salud_foto'] ?? null);
     $regidor_derechos_foto = _sanitize_relative_path($extras['regidor_derechos_foto'] ?? null);
     $propuestas_pdf     = _sanitize_relative_path($extras['propuestas_pdf'] ?? null);
-    $sede               = !empty($extras['sede']) ? trim($extras['sede']) : 'Sede Principal';
+    
+    $sedeName = !empty($extras['sede']) ? normalize_sede_name($extras['sede']) : normalize_sede_name(get_active_sede());
+    $targetSlug = normalize_sede_slug($sedeName);
+    $db = get_db_connection($targetSlug);
 
-    db_query(
+    $stmt = $db->prepare(
         'INSERT INTO candidatos (nombre, descripcion, foto, slogan, logo, propuestas, 
          alcalde, teniente, regidor_educacion, regidor_salud, regidor_derechos,
          alcalde_foto, teniente_foto, regidor_educacion_foto, regidor_salud_foto, regidor_derechos_foto, propuestas_pdf, sede) 
          VALUES (:nombre, :descripcion, :foto, :slogan, :logo, :propuestas,
          :alcalde, :teniente, :regidor_educacion, :regidor_salud, :regidor_derechos,
-         :alcalde_foto, :teniente_foto, :regidor_educacion_foto, :regidor_salud_foto, :regidor_derechos_foto, :propuestas_pdf, :sede)',
-        [
-            'nombre' => $nombre, 'descripcion' => $descripcion, 'foto' => $foto,
-            'slogan' => $slogan, 'logo' => $logo, 'propuestas' => $propuestas,
-            'alcalde' => $alcalde, 'teniente' => $teniente,
-            'regidor_educacion' => $regidor_edu, 'regidor_salud' => $regidor_salud,
-            'regidor_derechos' => $regidor_derechos,
-            'alcalde_foto' => $alcalde_foto, 'teniente_foto' => $teniente_foto,
-            'regidor_educacion_foto' => $regidor_edu_foto, 'regidor_salud_foto' => $regidor_salud_foto,
-            'regidor_derechos_foto' => $regidor_derechos_foto,
-            'propuestas_pdf' => $propuestas_pdf,
-            'sede' => $sede
-        ]
+         :alcalde_foto, :teniente_foto, :regidor_educacion_foto, :regidor_salud_foto, :regidor_derechos_foto, :propuestas_pdf, :sede)'
     );
-    return (int)$pdo->lastInsertId();
+
+    $stmt->execute([
+        'nombre' => $nombre, 'descripcion' => $descripcion, 'foto' => $foto,
+        'slogan' => $slogan, 'logo' => $logo, 'propuestas' => $propuestas,
+        'alcalde' => $alcalde, 'teniente' => $teniente,
+        'regidor_educacion' => $regidor_edu, 'regidor_salud' => $regidor_salud,
+        'regidor_derechos' => $regidor_derechos,
+        'alcalde_foto' => $alcalde_foto, 'teniente_foto' => $teniente_foto,
+        'regidor_educacion_foto' => $regidor_edu_foto, 'regidor_salud_foto' => $regidor_salud_foto,
+        'regidor_derechos_foto' => $regidor_derechos_foto,
+        'propuestas_pdf' => $propuestas_pdf,
+        'sede' => $sedeName
+    ]);
+
+    return (int)$db->lastInsertId();
 }
 
 function updateCandidato($id, $nombre = null, $descripcion = null, $foto = null, $extras = []) {
+    $targetSede = get_candidate_sede($id);
     $sets = [];
     $params = ['id' => $id];
 
@@ -81,7 +98,7 @@ function updateCandidato($id, $nombre = null, $descripcion = null, $foto = null,
                     'regidor_salud_foto', 'regidor_derechos_foto', 'propuestas_pdf', 'sede'];
     foreach ($extraFields as $ef) {
         if (isset($extras[$ef])) {
-            $fields[$ef] = $extras[$ef];
+            $fields[$ef] = ($ef === 'sede') ? normalize_sede_name($extras[$ef]) : $extras[$ef];
         }
     }
 
@@ -100,17 +117,19 @@ function updateCandidato($id, $nombre = null, $descripcion = null, $foto = null,
 
     if (empty($sets)) return false;
     $sql = 'UPDATE candidatos SET ' . implode(', ', $sets) . ' WHERE id = :id';
-    db_query($sql, $params);
+    db_query($sql, $params, $targetSede);
     return true;
 }
 
 function deleteCandidato($id) {
-    db_query('DELETE FROM votos WHERE candidato_id = :id', ['id' => $id]);
-    db_query('DELETE FROM candidatos WHERE id = :id', ['id' => $id]);
+    $targetSede = get_candidate_sede($id);
+    db_query('DELETE FROM votos WHERE candidato_id = :id', ['id' => $id], $targetSede);
+    db_query('DELETE FROM candidatos WHERE id = :id', ['id' => $id], $targetSede);
     return true;
 }
 
 function candidatoExists($id) {
-    $stmt = db_query('SELECT 1 FROM candidatos WHERE id = :id LIMIT 1', ['id' => $id]);
+    $targetSede = get_candidate_sede($id);
+    $stmt = db_query('SELECT 1 FROM candidatos WHERE id = :id LIMIT 1', ['id' => $id], $targetSede);
     return $stmt->fetchColumn() !== false;
 }

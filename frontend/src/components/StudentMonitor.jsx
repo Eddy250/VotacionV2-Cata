@@ -18,8 +18,8 @@ const StudentMonitor = () => {
   const [loading, setLoading] = useState(true);
   const [copiedCode, setCopiedCode] = useState(null);
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (showSpinner = true) => {
+    if (showSpinner) setLoading(true);
     try {
       const params = new URLSearchParams();
       if (selectedSede !== 'todos') params.append('sede', selectedSede);
@@ -40,12 +40,18 @@ const StudentMonitor = () => {
     } catch (err) {
       console.error("Error al cargar padrón de alumnos", err);
     } finally {
-      setLoading(false);
+      if (showSpinner) setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadData();
+    loadData(true);
+    const interval = setInterval(() => {
+      if (!search.trim()) {
+        loadData(false);
+      }
+    }, 2500);
+    return () => clearInterval(interval);
   }, [selectedSede, selectedNgs, selectedEstado]);
 
   const handleSearchSubmit = (e) => {

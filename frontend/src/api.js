@@ -26,6 +26,16 @@ export const getAssetUrl = (path) => {
   return `${rootBase}/${clean}`.replace(/([^:]\/)\/+/g, '$1');
 };
 
+export const getCabinaSede = () => {
+  return localStorage.getItem('cata_cabina_sede') || 'central';
+};
+
+export const setCabinaSede = (sede) => {
+  const clean = (sede && sede.toLowerCase().includes('jeru')) ? 'jerusalen' : 'central';
+  localStorage.setItem('cata_cabina_sede', clean);
+  return clean;
+};
+
 const api = axios.create({
   baseURL: getBaseURL(),
   headers: {
@@ -33,13 +43,19 @@ const api = axios.create({
   },
 });
 
-// Interceptor para inyectar token de docente en todas las peticiones
+// Interceptor para inyectar token de docente y sede activa de la cabina
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('cata_admin_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
     config.headers['X-Admin-Token'] = token;
   }
+
+  // Inyectar sede de la cabina si no se especificó otra explícitamente
+  if (!config.headers['X-Sede']) {
+    config.headers['X-Sede'] = getCabinaSede();
+  }
+
   return config;
 });
 

@@ -18,3 +18,4 @@ Thumbs.db
 .git_old/
 .git_root_backup/
 backend_git_backup/
+init_jerusalen.py

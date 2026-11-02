@@ -162,7 +162,7 @@ function crearTablasSiNoExisten()
     }
 }
 
-function actualizarEsquemaBD()
+function _actualizarEsquemaBDSede()
 {
     global $pdo;
     crearTablasSiNoExisten();
@@ -182,7 +182,7 @@ function actualizarEsquemaBD()
             'grado' => 'TEXT',
             'seccion' => 'TEXT',
             'ngs' => 'TEXT',
-            'sede' => "TEXT DEFAULT 'Sede Principal'",
+            'sede' => "TEXT DEFAULT 'Sede Central'",
             'fecha_voto' => 'DATETIME'
         ];
 
@@ -220,7 +220,7 @@ function actualizarEsquemaBD()
             'regidor_salud_foto' => 'TEXT',
             'regidor_derechos_foto' => 'TEXT',
             'propuestas_pdf' => 'TEXT',
-            'sede' => "TEXT DEFAULT 'Sede Principal'"
+            'sede' => "TEXT DEFAULT 'Sede Central'"
         ];
         foreach ($nuevasCandidato as $col => $tipo) {
             if (!in_array($col, $candCols)) {
@@ -247,7 +247,7 @@ function actualizarEsquemaBD()
                 'regidor_salud_foto' => 'VARCHAR(255) NULL',
                 'regidor_derechos_foto' => 'VARCHAR(255) NULL',
                 'propuestas_pdf' => 'VARCHAR(255) NULL',
-                'sede' => "VARCHAR(100) DEFAULT 'Sede Principal'"
+                'sede' => "VARCHAR(100) DEFAULT 'Sede Central'"
             ];
             foreach ($nuevasCandidato as $col => $tipo) {
                 if (!in_array($col, $candCols)) {
@@ -260,6 +260,16 @@ function actualizarEsquemaBD()
     }
 
     sembrarAdminsPorDefecto();
+}
+
+function actualizarEsquemaBD()
+{
+    $originalSede = get_active_sede();
+    foreach (['central', 'jerusalen'] as $s) {
+        set_active_db($s);
+        _actualizarEsquemaBDSede();
+    }
+    set_active_db($originalSede);
 }
 
 function sembrarAdminsPorDefecto()
@@ -300,25 +310,39 @@ function sembrarAdminsPorDefecto()
 
 function sembrarDatosDePrueba()
 {
-    $count = (int) db_query('SELECT COUNT(*) FROM candidatos')->fetchColumn();
-    if ($count > 0)
-        return;
+    $originalSede = get_active_sede();
 
-    insertCandidato('Lista Fuerza CATA', 'Trabajamos por un colegio mejor', null, [
-        'slogan' => '¡Juntos hacemos la diferencia!',
-        'alcalde' => 'Franco Vidal',
-        'teniente' => 'Ana Torres',
-        'regidor_educacion' => 'Carlos Quispe',
-        'regidor_salud' => 'María López',
-        'regidor_derechos' => 'Pedro Mamani'
-    ]);
-    insertCandidato('Lista Juventud en Acción', 'Innovación y compromiso estudiantil', null, [
-        'slogan' => '¡Tu voz, nuestro compromiso!',
-        'alcalde' => 'María González',
-        'teniente' => 'José Flores',
-        'regidor_educacion' => 'Lucía Ramos',
-        'regidor_salud' => 'David Chura',
-        'regidor_derechos' => 'Sofía Apaza'
-    ]);
-    insertCandidato('Voto en Blanco', 'Opción cívica democrática', null);
+    // Sede Central
+    set_active_db('central');
+    $countCentral = (int) db_query('SELECT COUNT(*) FROM candidatos')->fetchColumn();
+    if ($countCentral === 0) {
+        insertCandidato('Lista Fuerza CATA', 'Trabajamos por un colegio mejor', null, [
+            'slogan' => '¡Juntos hacemos la diferencia!',
+            'alcalde' => 'Franco Vidal',
+            'teniente' => 'Ana Torres',
+            'regidor_educacion' => 'Carlos Quispe',
+            'regidor_salud' => 'María López',
+            'regidor_derechos' => 'Pedro Mamani',
+            'sede' => 'Sede Central'
+        ]);
+        insertCandidato('Lista Juventud en Acción', 'Innovación y compromiso estudiantil', null, [
+            'slogan' => '¡Tu voz, nuestro compromiso!',
+            'alcalde' => 'María González',
+            'teniente' => 'José Flores',
+            'regidor_educacion' => 'Lucía Ramos',
+            'regidor_salud' => 'David Chura',
+            'regidor_derechos' => 'Sofía Apaza',
+            'sede' => 'Sede Central'
+        ]);
+        insertCandidato('Voto en Blanco', 'Opción cívica democrática', null, ['sede' => 'Sede Central']);
+    }
+
+    // Sede Jerusalén
+    set_active_db('jerusalen');
+    $countJeru = (int) db_query('SELECT COUNT(*) FROM candidatos')->fetchColumn();
+    if ($countJeru === 0) {
+        insertCandidato('Voto en Blanco', 'Opción cívica democrática', null, ['sede' => 'Sede Jerusalén']);
+    }
+
+    set_active_db($originalSede);
 }

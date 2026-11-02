@@ -138,15 +138,6 @@ class PdfExtractor {
             return $resultado;
         }
 
-        // 0. Detectar Sede si está explícita en el documento PDF
-        if (preg_match('/(?:sede\s*jerusal[eé]n|anexo\s*jerusal[eé]n|\bjerusal[eé]n\b)/iu', $rawText)) {
-            $resultado['sede'] = 'Sede Jerusalén';
-            $resultado['sede_detectada'] = true;
-        } elseif (preg_match('/(?:sede\s*principal|sede\s*central|\bcentral\b)/iu', $rawText)) {
-            $resultado['sede'] = 'Sede Principal';
-            $resultado['sede_detectada'] = true;
-        }
-
         // 1. Detectar Nombre de la Lista (soporta misma línea O siguiente línea)
         if (preg_match('/(?:LISTA\s*CANDIDATA|NOMBRE\s*DE\s*LA\s*LISTA)[:\s\|\-]+[\r\n\s]*([^\r\n]+)/iu', $rawText, $nm)) {
             $nom = trim($nm[1], " \t\n\r\0\x0B|:-, ");
@@ -252,12 +243,6 @@ class PdfExtractor {
                         $detectadosDirectos[$k]['dni'] = $v['dni'];
                         $detectadosDirectos[$k]['grado'] = trim(($v['grado'] ?? '') . ' ' . ($v['seccion'] ?? '') . ' ' . ($v['ngs'] ?? ''));
                         $detectadosDirectos[$k]['verificado_padron'] = true;
-                        
-                        // Si la sede aún no se dedujo del texto, deducirla de la sede del alumno en el padrón
-                        if (empty($resultado['sede']) && !empty($v['sede'])) {
-                            $resultado['sede'] = $v['sede'];
-                            $resultado['sede_detectada'] = true;
-                        }
                         break;
                     }
                 }

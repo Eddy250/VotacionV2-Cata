@@ -6,10 +6,8 @@ const BLUE = '#1B3A8C';
 const GOLD = '#D97706';
 
 const QrCampaignGenerator = () => {
-  // IP local detectada de la máquina en la red
-  const detectedHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-    ? '192.168.18.42:8001' 
-    : window.location.host;
+  // Servidor o dominio detectado
+  const detectedHost = window.location.host;
     
   const defaultBase = `${window.location.protocol}//${detectedHost}`;
 
@@ -71,6 +69,10 @@ const QrCampaignGenerator = () => {
             <p className="text-xs text-gray-500 mt-0.5">
               Genera códigos QR listos para imprimir en afiches para las aulas o compartir en redes escolares.
             </p>
+            <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-bold">
+              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+              <span>QR Estático Permanente: No caduca, no cambia de estado y funciona siempre</span>
+            </div>
           </div>
 
           <div className="flex items-center gap-2 w-full md:w-auto">

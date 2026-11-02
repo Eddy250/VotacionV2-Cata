@@ -310,7 +310,10 @@ const Portal = () => {
           (() => {
             const sedeCandidatos = candidatos.filter(c => {
               if (c.nombre?.toLowerCase().includes('blanco')) return false;
-              return (c.sede || 'Sede Principal') === activeSede;
+              if (activeSede === 'Sede Principal' || activeSede === 'Sede Central') {
+                return !c.sede || c.sede.includes('Principal') || c.sede.includes('Central');
+              }
+              return c.sede && c.sede.includes('Jerusal');
             });
 
             if (sedeCandidatos.length === 0) {

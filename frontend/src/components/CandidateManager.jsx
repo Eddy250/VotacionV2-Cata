@@ -254,11 +254,10 @@ const CandidateManager = () => {
 
   useEffect(() => { loadCandidatos(); }, []);
 
-  const openCreate = () => {
+  const openCreate = (targetSede = 'Sede Central') => {
     setEditMode(null);
     setExistingFiles({});
-    const initialSede = filterSede === 'Sede Jerusalén' ? 'Sede Jerusalén' : 'Sede Principal';
-    setFormData({ ...emptyForm, sede: initialSede });
+    setFormData({ ...emptyForm, sede: targetSede });
     setAnalysisResult(null);
     setAnalysisError(null);
     setActiveTab('general');
@@ -411,11 +410,6 @@ const CandidateManager = () => {
           setText('propuestas_pdf_path', data.pdf_path);
           setExistingFiles(prev => ({ ...prev, propuestas_pdf: data.pdf_url || data.pdf_path }));
         }
-
-        // Si el asistente detectó la sede automáticamente (por texto o por padrón)
-        if (data.sede) {
-          setText('sede', data.sede);
-        }
       } else {
         setAnalysisError("No se pudo extraer texto del documento PDF.");
       }
@@ -434,7 +428,6 @@ const CandidateManager = () => {
       if (analysisResult.nombre) next.nombre = analysisResult.nombre;
       if (analysisResult.slogan) next.slogan = analysisResult.slogan;
       if (analysisResult.propuestas) next.propuestas = analysisResult.propuestas;
-      if (analysisResult.sede) next.sede = analysisResult.sede;
 
       // Asignar candidatos detectados
       (analysisResult.alumnos_detectados || []).forEach(a => {
@@ -465,15 +458,21 @@ const CandidateManager = () => {
           <h3 className="text-xl font-bold text-slate-800">Listas / Candidatos Oficiales</h3>
           <p className="text-slate-500 text-xs mt-0.5">Gestiona las listas electorales, directivas y planes de trabajo en PDF</p>
         </div>
-        <button
-          onClick={openCreate}
-          className="flex items-center gap-2 text-white font-bold py-2.5 px-5 rounded-full shadow-lg transition-colors text-sm"
-          style={{ backgroundColor: BLUE }}
-          onMouseEnter={e => e.currentTarget.style.backgroundColor = '#142D6E'}
-          onMouseLeave={e => e.currentTarget.style.backgroundColor = BLUE}
-        >
-          <PlusCircle size={18} /> Nueva Lista
-        </button>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={() => openCreate('Sede Central')}
+            className="flex items-center gap-2 text-white font-bold py-2.5 px-4 rounded-2xl shadow-sm hover:shadow transition-all text-xs sm:text-sm cursor-pointer"
+            style={{ backgroundColor: BLUE }}
+          >
+            <PlusCircle size={17} /> + Nueva Lista Sede Central
+          </button>
+          <button
+            onClick={() => openCreate('Sede Jerusalén')}
+            className="flex items-center gap-2 text-white font-bold py-2.5 px-4 rounded-2xl shadow-sm hover:shadow transition-all text-xs sm:text-sm bg-emerald-700 hover:bg-emerald-800 cursor-pointer"
+          >
+            <PlusCircle size={17} /> + Nueva Lista Sede Jerusalén
+          </button>
+        </div>
       </div>
 
       {/* Selector de Módulo / Sede */}
@@ -489,28 +488,33 @@ const CandidateManager = () => {
         </button>
         <button
           type="button"
-          onClick={() => setFilterSede('Sede Principal')}
+          onClick={() => setFilterSede('Sede Central')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-            filterSede === 'Sede Principal' ? 'bg-white text-blue-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+            filterSede === 'Sede Central' ? 'bg-white text-blue-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
           }`}
         >
-          🏛️ Sede Central ({candidatos.filter(c => (c.sede || 'Sede Principal') === 'Sede Principal').length})
+          🏛️ Sede Central ({candidatos.filter(c => !c.sede || c.sede.includes('Central') || c.sede.includes('Principal')).length})
         </button>
         <button
           type="button"
           onClick={() => setFilterSede('Sede Jerusalén')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-            filterSede === 'Sede Jerusalén' ? 'bg-white text-blue-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+            filterSede === 'Sede Jerusalén' ? 'bg-white text-emerald-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
           }`}
         >
-          🏛️ Sede Jerusalén ({candidatos.filter(c => c.sede === 'Sede Jerusalén').length})
+          ⛪ Sede Jerusalén ({candidatos.filter(c => c.sede && c.sede.includes('Jerusal')).length})
         </button>
       </div>
 
       {/* Grid de Candidatos */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
         {candidatos
-          .filter(c => filterSede === 'todos' || (c.sede || 'Sede Principal') === filterSede)
+          .filter(c => {
+            if (filterSede === 'todos') return true;
+            if (filterSede === 'Sede Central') return !c.sede || c.sede.includes('Central') || c.sede.includes('Principal');
+            if (filterSede === 'Sede Jerusalén') return c.sede && c.sede.includes('Jerusal');
+            return true;
+          })
           .map(c => (
           <div key={c.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col group hover:shadow-md transition-shadow">
             <div className="h-44 bg-slate-100 relative">
@@ -630,12 +634,12 @@ const CandidateManager = () => {
                       <div>
                         <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">Sede Electoral</label>
                         <select
-                          value={formData.sede || 'Sede Principal'}
+                          value={formData.sede && formData.sede.includes('Jerusal') ? 'Sede Jerusalén' : 'Sede Central'}
                           onChange={e => setText('sede', e.target.value)}
-                          className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-xs font-bold text-slate-800 focus:border-blue-600"
+                          className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-xs font-bold text-slate-800 focus:border-blue-600 cursor-pointer"
                         >
-                          <option value="Sede Principal">🏛️ Sede Central</option>
-                          <option value="Sede Jerusalén">🏛️ Sede Jerusalén</option>
+                          <option value="Sede Central">🏛️ Sede Central</option>
+                          <option value="Sede Jerusalén">⛪ Sede Jerusalén</option>
                         </select>
                       </div>
                     </div>
@@ -730,30 +734,26 @@ const CandidateManager = () => {
                           </button>
                         </div>
 
-                        {/* Sede Asignada / Detectada */}
+                        {/* Sede Asignada */}
                         <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 text-xs">
                           <div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-bold text-slate-500 text-[10px] uppercase">Sede de esta Lista:</span>
-                              {analysisResult.sede_detectada && (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800">
-                                  ✨ Detectado en PDF / Padrón
-                                </span>
-                              )}
-                            </div>
+                            <span className="font-bold text-slate-500 text-[10px] uppercase block">Sede Asignada por Administrador:</span>
                             <span className="font-black text-blue-950 text-sm mt-0.5 block">
-                              {formData.sede === 'Sede Jerusalén' ? '🏛️ Sede Jerusalén' : '🏛️ Sede Central'}
+                              {formData.sede && formData.sede.includes('Jerusal') ? '⛪ Sede Jerusalén' : '🏛️ Sede Central'}
+                            </span>
+                            <span className="text-[11px] text-slate-500 mt-0.5 block">
+                              El asistente no altera la sede para garantizar la separación de padrones.
                             </span>
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="text-[11px] text-slate-500 font-semibold">Cambiar:</span>
                             <select
-                              value={formData.sede || 'Sede Principal'}
+                              value={formData.sede && formData.sede.includes('Jerusal') ? 'Sede Jerusalén' : 'Sede Central'}
                               onChange={e => setText('sede', e.target.value)}
                               className="px-3 py-1.5 rounded-xl border border-blue-300 bg-white text-xs font-bold text-slate-800 shadow-sm outline-none cursor-pointer"
                             >
-                              <option value="Sede Principal">🏛️ Sede Central</option>
-                              <option value="Sede Jerusalén">🏛️ Sede Jerusalén</option>
+                              <option value="Sede Central">🏛️ Sede Central</option>
+                              <option value="Sede Jerusalén">⛪ Sede Jerusalén</option>
                             </select>
                           </div>
                         </div>
