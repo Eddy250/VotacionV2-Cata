@@ -191,17 +191,15 @@ function handle_voto() {
 
     for ($intento = 1; $intento <= $maxIntentos; $intento++) {
         try {
-            if (DB_DRIVER === 'sqlite') {
-                $pdo->exec('BEGIN IMMEDIATE TRANSACTION;');
-            } else {
-                $pdo->beginTransaction();
-            }
+            $pdo->beginTransaction();
 
             // Verificación atómica interna de doble voto
             $stmtCheck = $pdo->prepare('SELECT ha_votado FROM voters WHERE codigo = :c LIMIT 1');
             $stmtCheck->execute(['c' => $codigoReal]);
             if ((int)$stmtCheck->fetchColumn() === 1) {
-                $pdo->rollBack();
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
                 http_response_code(403);
                 echo json_encode(['error' => 'Este estudiante ya ha ejercido su voto anteriormente.']);
                 return;

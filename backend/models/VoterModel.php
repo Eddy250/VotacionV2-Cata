@@ -43,20 +43,28 @@ function setVoterVoted($codigo, $sede = null) {
     db_query('UPDATE voters SET ha_votado = 1, fecha_voto = CURRENT_TIMESTAMP WHERE codigo = :codigo', ['codigo' => $codigo], $targetSede);
 }
 
-function getAllVoters($sede = null) {
+function getAllVoters($sede = null, $ngs = null) {
+    $where = ["(ngs NOT LIKE '%A_OS%' AND ngs NOT LIKE '%INICIAL%')"];
+    $params = [];
+    if ($ngs && $ngs !== 'todos') {
+        $where[] = 'ngs = :ngs';
+        $params['ngs'] = $ngs;
+    }
+    $whereClause = ' WHERE ' . implode(' AND ', $where);
+
     if ($sede === 'todos' || $sede === null) {
-        $vCentral = db_query('SELECT * FROM voters ORDER BY ngs ASC, nombre ASC', [], 'central')->fetchAll();
-        $vJeru = db_query('SELECT * FROM voters ORDER BY ngs ASC, nombre ASC', [], 'jerusalen')->fetchAll();
+        $vCentral = db_query('SELECT * FROM voters' . $whereClause . ' ORDER BY ngs ASC, nombre ASC', $params, 'central')->fetchAll();
+        $vJeru = db_query('SELECT * FROM voters' . $whereClause . ' ORDER BY ngs ASC, nombre ASC', $params, 'jerusalen')->fetchAll();
         return array_merge($vCentral, $vJeru);
     }
     $slug = normalize_sede_slug($sede);
-    $stmt = db_query('SELECT * FROM voters ORDER BY ngs ASC, nombre ASC', [], $slug);
+    $stmt = db_query('SELECT * FROM voters' . $whereClause . ' ORDER BY ngs ASC, nombre ASC', $params, $slug);
     return $stmt->fetchAll();
 }
 
 function getDistinctSedesAndNGS() {
-    $ngsCentral = db_query('SELECT DISTINCT ngs FROM voters WHERE ngs IS NOT NULL AND ngs != "" ORDER BY ngs ASC', [], 'central')->fetchAll(PDO::FETCH_COLUMN);
-    $ngsJeru = db_query('SELECT DISTINCT ngs FROM voters WHERE ngs IS NOT NULL AND ngs != "" ORDER BY ngs ASC', [], 'jerusalen')->fetchAll(PDO::FETCH_COLUMN);
+    $ngsCentral = db_query("SELECT DISTINCT ngs FROM voters WHERE ngs IS NOT NULL AND ngs != '' AND ngs NOT LIKE '%A_OS%' AND ngs NOT LIKE '%INICIAL%' ORDER BY ngs ASC", [], 'central')->fetchAll(PDO::FETCH_COLUMN);
+    $ngsJeru = db_query("SELECT DISTINCT ngs FROM voters WHERE ngs IS NOT NULL AND ngs != '' AND ngs NOT LIKE '%A_OS%' AND ngs NOT LIKE '%INICIAL%' ORDER BY ngs ASC", [], 'jerusalen')->fetchAll(PDO::FETCH_COLUMN);
 
     return [
         'sedes' => ['Sede Central', 'Sede Jerusalén'],
@@ -71,6 +79,8 @@ function _getStudentsFilteredFromDB($sedeSlug, $ngs = null, $estado = 'todos', $
     if ($ngs && $ngs !== 'todos') {
         $where[] = 'ngs = :ngs';
         $params['ngs'] = $ngs;
+    } else {
+        $where[] = "(ngs NOT LIKE '%A_OS%' AND ngs NOT LIKE '%INICIAL%')";
     }
 
     if ($estado === 'votaron') {
@@ -146,9 +156,33 @@ function importarLoteAlumnos($listaAlumnos, $sedeDefault = 'Sede Central') {
             $apMaterno = isset($al['ap_materno']) ? trim((string)$al['ap_materno']) : '';
             $nombres = isset($al['nombres']) ? trim((string)$al['nombres']) : '';
             $sexo = isset($al['sexo']) ? strtoupper(trim((string)$al['sexo'])) : null;
+            $grado = isset($al['grado']) ? trim((string)$al['grado']) : null;
+            $seccion = isset($al['seccion']) ? trim((string)$al['seccion']) : null;
             $ngs = isset($al['ngs']) ? strtoupper(trim((string)$al['ngs'])) : null;
             $sede = $targetSedeName; // La sede es fijada estrictamente por el botón seleccionado
             $email = isset($al['email']) ? trim((string)$al['email']) : null;
+
+            // Extraer grado y sección si no vienen explícitos pero ngs tiene formato (ej: "1° A - PRIMARIA" o "CUARTO GRADO")
+            if ((!$grado || !$seccion) && !empty($ngs)) {
+                $ngsUpper = mb_strtoupper($ngs, 'UTF-8');
+                if (!$grado) {
+                    if (strpos($ngsUpper, 'PRIMER') !== false || preg_match('/\b1\b|1°|1º/u', $ngsUpper)) $grado = '1°';
+                    elseif (strpos($ngsUpper, 'SEGUND') !== false || preg_match('/\b2\b|2°|2º/u', $ngsUpper)) $grado = '2°';
+                    elseif (strpos($ngsUpper, 'TERCER') !== false || preg_match('/\b3\b|3°|3º/u', $ngsUpper)) $grado = '3°';
+                    elseif (strpos($ngsUpper, 'CUART') !== false || preg_match('/\b4\b|4°|4º/u', $ngsUpper)) $grado = '4°';
+                    elseif (strpos($ngsUpper, 'QUINT') !== false || preg_match('/\b5\b|5°|5º/u', $ngsUpper)) $grado = '5°';
+                    elseif (strpos($ngsUpper, 'SEXT') !== false || preg_match('/\b6\b|6°|6º/u', $ngsUpper)) $grado = '6°';
+                }
+                if (!$seccion) {
+                    if (preg_match('/(?:SECCI[OÓ]N|SEC\.?|AULA)\s*[:\-]?\s*([A-E])\b/u', $ngsUpper, $sm)) {
+                        $seccion = $sm[1];
+                    } elseif (preg_match('/[1-6]\s*[\-_°º]?\s*([A-E])\b/u', $ngsUpper, $sm)) {
+                        $seccion = $sm[1];
+                    } else {
+                        $seccion = 'ÚNICA';
+                    }
+                }
+            }
 
             // Armar nombre completo
             $nombreCompleto = '';
@@ -203,6 +237,8 @@ function importarLoteAlumnos($listaAlumnos, $sedeDefault = 'Sede Central') {
                         ap_materno = :ap_mat,
                         nombres = :nombres,
                         sexo = :sexo,
+                        grado = :grado,
+                        seccion = :seccion,
                         ngs = :ngs,
                         sede = :sede,
                         email = :email
@@ -215,6 +251,8 @@ function importarLoteAlumnos($listaAlumnos, $sedeDefault = 'Sede Central') {
                         'ap_mat' => $apMaterno,
                         'nombres' => $nombres,
                         'sexo' => $sexo,
+                        'grado' => $grado,
+                        'seccion' => $seccion,
                         'ngs' => $ngs,
                         'sede' => $sede,
                         'email' => $email,
@@ -226,9 +264,9 @@ function importarLoteAlumnos($listaAlumnos, $sedeDefault = 'Sede Central') {
             } else {
                 db_query('
                     INSERT INTO voters (
-                        codigo, codigo_original, dni, nombre, ap_paterno, ap_materno, nombres, sexo, ngs, sede, email, ha_votado
+                        codigo, codigo_original, dni, nombre, ap_paterno, ap_materno, nombres, sexo, grado, seccion, ngs, sede, email, ha_votado
                     ) VALUES (
-                        :codigo, :cod_orig, :dni, :nombre, :ap_pat, :ap_mat, :nombres, :sexo, :ngs, :sede, :email, 0
+                        :codigo, :cod_orig, :dni, :nombre, :ap_pat, :ap_mat, :nombres, :sexo, :grado, :seccion, :ngs, :sede, :email, 0
                     )',
                     [
                         'codigo' => $codigoVoto,
@@ -239,6 +277,8 @@ function importarLoteAlumnos($listaAlumnos, $sedeDefault = 'Sede Central') {
                         'ap_mat' => $apMaterno,
                         'nombres' => $nombres,
                         'sexo' => $sexo,
+                        'grado' => $grado,
+                        'seccion' => $seccion,
                         'ngs' => $ngs,
                         'sede' => $sede,
                         'email' => $email
@@ -253,6 +293,8 @@ function importarLoteAlumnos($listaAlumnos, $sedeDefault = 'Sede Central') {
                 'codigo_original' => $codOriginal,
                 'dni' => $dni,
                 'nombre' => $nombreCompleto,
+                'grado' => $grado,
+                'seccion' => $seccion,
                 'ngs' => $ngs,
                 'sede' => $sede
             ];

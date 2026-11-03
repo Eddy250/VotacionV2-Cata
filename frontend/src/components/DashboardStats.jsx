@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import api, { getBaseURL } from '../api';
+import api from '../api';
 import { Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
-import { Users, Vote, Percent, Filter, Download, RefreshCw, Building2, Church, Globe2 } from 'lucide-react';
+import { Users, Vote, Percent, Filter, RefreshCw, Building2, Church, Globe2, MonitorPlay } from 'lucide-react';
+import ProjectorView from './ProjectorView';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
@@ -25,6 +26,7 @@ const DashboardStats = ({ handleLogout }) => {
   const [stats, setStats] = useState(null);
   const [filterSede, setFilterSede] = useState('todos');
   const [filterNgs, setFilterNgs] = useState('todos');
+  const [projectorMode, setProjectorMode] = useState(false);
 
   const loadData = async (sede = filterSede, ngs = filterNgs) => {
     try {
@@ -50,25 +52,104 @@ const DashboardStats = ({ handleLogout }) => {
     return () => clearInterval(intervalId);
   }, [filterSede, filterNgs]);
 
-  const token = localStorage.getItem('cata_admin_token') || '';
-  const exportUrl = `${getBaseURL()}/admin/export?token=${encodeURIComponent(token)}${filterSede !== 'todos' ? `&sede=${encodeURIComponent(filterSede)}` : ''}`;
-
   if (!stats) return <div className="p-8 text-center text-slate-500 font-bold animate-pulse">Cargando estadísticas en vivo...</div>;
+
+  const defaultPalette = ['#1B3A8C', '#E11D48', '#F59E0B', '#10B981', '#8B5CF6', '#F97316', '#06B6D4', '#EC4899'];
+
+  const getCandidateColor = (candidato, index = 0) => {
+    if (candidato?.color) return candidato.color;
+    const name = candidato?.nombre || '';
+    if (/blanco|nulo/i.test(name)) return '#94A3B8';
+    if (/franco/i.test(name)) return '#1B3A8C';
+    if (/mar[ií]a|gonz/i.test(name)) return '#E11D48';
+    if (/fuerza/i.test(name)) return '#F59E0B';
+    return defaultPalette[index % defaultPalette.length];
+  };
+
+  const chartColors = (stats.chart_colors && stats.chart_colors.length === stats.chart_labels.length)
+    ? stats.chart_colors
+    : stats.chart_labels.map((label, idx) => {
+        if (/blanco|nulo/i.test(label)) return '#94A3B8';
+        return defaultPalette[idx % defaultPalette.length];
+      });
 
   const chartData = {
     labels: stats.chart_labels,
     datasets: [{
       label: 'Votos Obtenidos',
       data: stats.chart_data,
-      backgroundColor: BLUE,
-      borderRadius: 10,
+      backgroundColor: chartColors,
+      hoverBackgroundColor: chartColors,
+      borderRadius: 12,
+      borderSkipped: false,
+      borderWidth: 1.5,
+      borderColor: chartColors,
     }]
+  };
+
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false
+      },
+      tooltip: {
+        backgroundColor: '#0F172A',
+        titleFont: { size: 13, weight: 'bold' },
+        bodyFont: { size: 12, weight: 'bold' },
+        padding: 12,
+        cornerRadius: 12,
+        callbacks: {
+          label: (context) => ` ${context.raw} votos obtenidos`
+        }
+      }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          precision: 0,
+          font: { weight: 'bold' }
+        },
+        grid: {
+          color: '#F1F5F9'
+        }
+      },
+      x: {
+        ticks: {
+          font: { weight: 'bold' }
+        },
+        grid: {
+          display: false
+        }
+      }
+    }
   };
 
   const desglose = stats.sedes_desglose;
 
+  if (projectorMode) {
+    return <ProjectorView sede={filterSede} ngs={filterNgs} onClose={() => setProjectorMode(false)} />;
+  }
+
   return (
     <div className="space-y-6">
+      {/* Botón: Modo Proyector / Pantalla Gigante */}
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => setProjectorMode(true)}
+          className="flex items-center gap-2 px-5 py-3 text-white text-sm font-bold rounded-xl shadow-sm transition-colors cursor-pointer"
+          style={{ backgroundColor: BLUE }}
+          onMouseEnter={e => e.currentTarget.style.backgroundColor = '#142D6E'}
+          onMouseLeave={e => e.currentTarget.style.backgroundColor = BLUE}
+          title="Proyectar resultados en pantalla completa (salir con Esc)"
+        >
+          <MonitorPlay size={18} /> Modo Proyector / Pantalla Gigante
+        </button>
+      </div>
+
       {/* Selector Rápido del Backend Puente (Ambas Sedes / Central / Jerusalén) */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <button
@@ -174,18 +255,18 @@ const DashboardStats = ({ handleLogout }) => {
         </div>
       )}
 
-      {/* Barra de Filtro de Resultados y Exportación */}
+      {/* Barra de Filtro de Resultados */}
       <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex items-center gap-2 text-slate-700 font-bold text-sm">
           <Filter size={18} style={{ color: BLUE }} />
           <span>Filtro de Salón (NGS):</span>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+        <div className="w-full sm:w-auto">
           <select 
             value={filterNgs}
             onChange={(e) => setFilterNgs(e.target.value)}
-            className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none transition-colors"
+            className="w-full sm:w-auto px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none transition-colors"
             onFocus={e => e.target.style.borderColor = BLUE}
             onBlur={e => e.target.style.borderColor = '#E2E8F0'}
           >
@@ -194,18 +275,6 @@ const DashboardStats = ({ handleLogout }) => {
               <option key={i} value={n}>{n}</option>
             ))}
           </select>
-
-          <a 
-            href={exportUrl} 
-            target="_blank" 
-            rel="noreferrer" 
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-white text-xs font-bold rounded-xl shadow-sm transition-colors"
-            style={{ backgroundColor: '#10B981' }}
-            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#059669'}
-            onMouseLeave={e => e.currentTarget.style.backgroundColor = '#10B981'}
-          >
-            <Download size={14} /> Exportar Auditoría en Excel
-          </a>
         </div>
       </div>
 
@@ -243,7 +312,7 @@ const DashboardStats = ({ handleLogout }) => {
           </div>
         </div>
         <div className="h-80">
-          <Bar data={chartData} options={{ responsive: true, maintainAspectRatio: false }} />
+          <Bar data={chartData} options={chartOptions} />
         </div>
       </div>
       
@@ -259,25 +328,36 @@ const DashboardStats = ({ handleLogout }) => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
-            {(stats.resultados || []).map((r, i) => (
-              <tr key={i} className="hover:bg-slate-50/70 transition-colors">
-                <td className="p-5 font-bold text-slate-800 flex items-center gap-3">
-                  <span className="w-7 h-7 rounded-full font-black text-xs flex items-center justify-center" style={{ backgroundColor: '#EEF4FF', color: BLUE }}>
-                    {i + 1}
-                  </span>
-                  {r.nombre}
-                </td>
-                <td className="p-5 text-xs font-bold">
-                  <span className={`px-2.5 py-1 rounded-full text-[11px] font-black ${
-                    r.sede && r.sede.includes('Jerusal') ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
-                  }`}>
-                    {r.sede && r.sede.includes('Jerusal') ? '⛪ Sede Jerusalén' : '🏛️ Sede Central'}
-                  </span>
-                </td>
-                <td className="p-5 text-right font-extrabold text-slate-700">{r.votos}</td>
-                <td className="p-5 text-right font-black" style={{ color: BLUE }}>{r.porcentaje}%</td>
-              </tr>
-            ))}
+            {(stats.resultados || []).map((r, i) => {
+              const itemColor = getCandidateColor(r, i);
+              return (
+                <tr key={i} className="hover:bg-slate-50/70 transition-colors">
+                  <td className="p-5 font-bold text-slate-800 flex items-center gap-3">
+                    <span 
+                      className="w-3.5 h-3.5 rounded-full flex-shrink-0 shadow-xs ring-2 ring-white" 
+                      style={{ backgroundColor: itemColor }}
+                      title={`Color oficial: ${itemColor}`}
+                    />
+                    <span 
+                      className="w-7 h-7 rounded-full font-black text-xs flex items-center justify-center flex-shrink-0" 
+                      style={{ backgroundColor: `${itemColor}20`, color: itemColor }}
+                    >
+                      {i + 1}
+                    </span>
+                    <span className="font-extrabold text-slate-900">{r.nombre}</span>
+                  </td>
+                  <td className="p-5 text-xs font-bold">
+                    <span className={`px-2.5 py-1 rounded-full text-[11px] font-black ${
+                      r.sede && r.sede.includes('Jerusal') ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
+                    }`}>
+                      {r.sede && r.sede.includes('Jerusal') ? '⛪ Sede Jerusalén' : '🏛️ Sede Central'}
+                    </span>
+                  </td>
+                  <td className="p-5 text-right font-extrabold text-slate-700">{r.votos}</td>
+                  <td className="p-5 text-right font-black text-base" style={{ color: itemColor }}>{r.porcentaje}%</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

@@ -227,7 +227,8 @@ const CandidateManager = () => {
     regidor_educacion_foto: null, regidor_salud_foto: null, regidor_derechos_foto: null,
     propuestas_pdf: null,
     propuestas_pdf_path: '',
-    sede: 'Sede Principal'
+    sede: 'Sede Principal',
+    color: '#1B3A8C'
   };
 
   const [formData, setFormData] = useState({ ...emptyForm });
@@ -287,7 +288,8 @@ const CandidateManager = () => {
       regidor_educacion_foto: null, regidor_salud_foto: null, regidor_derechos_foto: null,
       propuestas_pdf: null,
       propuestas_pdf_path: c.propuestas_pdf || '',
-      sede: c.sede || 'Sede Principal'
+      sede: c.sede || 'Sede Principal',
+      color: c.color || '#1B3A8C'
     });
     setAnalysisResult(null);
     setAnalysisError(null);
@@ -308,7 +310,7 @@ const CandidateManager = () => {
 
     // Campos de texto
     const textFields = ['nombre', 'descripcion', 'slogan', 'propuestas',
-      'alcalde', 'teniente', 'regidor_educacion', 'regidor_salud', 'regidor_derechos', 'sede'];
+      'alcalde', 'teniente', 'regidor_educacion', 'regidor_salud', 'regidor_derechos', 'sede', 'color'];
     textFields.forEach(f => { if (formData[f]) data.append(f, formData[f]); });
 
     // Ruta de PDF si ya fue pre-guardado por el asistente
@@ -537,10 +539,17 @@ const CandidateManager = () => {
                   <FileCode size={11} /> PDF Adjunto
                 </div>
               )}
-              <div className="absolute top-2 left-2">
+              <div className="absolute top-2 left-2 flex items-center gap-1.5">
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/90 text-slate-700 shadow-sm">
                   {c.sede === 'Sede Jerusalén' ? '🏛️ Jerusalén' : '🏛️ Central'}
                 </span>
+                {c.color && (
+                  <span 
+                    className="w-3.5 h-3.5 rounded-full border border-white shadow-sm flex-shrink-0" 
+                    style={{ backgroundColor: c.color }}
+                    title={`Color de la lista: ${c.color}`}
+                  />
+                )}
               </div>
             </div>
             <div className="p-5 flex-grow">
@@ -659,6 +668,65 @@ const CandidateManager = () => {
                         className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm focus:border-blue-600"
                         rows="3"
                       />
+                    </div>
+
+                    {/* Color Representativo del Partido / Lista */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-bold text-slate-700 uppercase">
+                          Color Oficial del Partido (Barras y Resultados)
+                        </label>
+                        <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-md text-white" style={{ backgroundColor: formData.color || '#1B3A8C' }}>
+                          {formData.color || '#1B3A8C'}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 p-3 bg-slate-50 border border-slate-200 rounded-2xl">
+                        {[
+                          { name: 'Azul CATA', hex: '#1B3A8C' },
+                          { name: 'Azul Real', hex: '#2563EB' },
+                          { name: 'Rojo Pasión', hex: '#E11D48' },
+                          { name: 'Amarillo / Dorado', hex: '#F59E0B' },
+                          { name: 'Verde Esmeralda', hex: '#10B981' },
+                          { name: 'Morado / Violeta', hex: '#8B5CF6' },
+                          { name: 'Naranja', hex: '#F97316' },
+                          { name: 'Celeste / Cian', hex: '#06B6D4' },
+                          { name: 'Rosa Vibrante', hex: '#EC4899' },
+                          { name: 'Gris Neutro', hex: '#64748B' },
+                        ].map((swatch, idx) => {
+                          const isSelected = formData.color?.toLowerCase() === swatch.hex.toLowerCase();
+                          return (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => setText('color', swatch.hex)}
+                              title={swatch.name}
+                              className={`w-7 h-7 rounded-xl transition-all cursor-pointer flex items-center justify-center ${
+                                isSelected
+                                  ? 'ring-2 ring-offset-2 ring-slate-800 scale-110 shadow-sm'
+                                  : 'hover:scale-105 opacity-80 hover:opacity-100'
+                              }`}
+                              style={{ backgroundColor: swatch.hex }}
+                            >
+                              {isSelected && (
+                                <CheckCircle2 size={14} className="text-white drop-shadow" />
+                              )}
+                            </button>
+                          );
+                        })}
+                        
+                        {/* Selector de color nativo libre */}
+                        <div className="flex items-center gap-2 pl-3 border-l border-slate-200 ml-auto">
+                          <label className="text-xs font-bold text-slate-600 cursor-pointer flex items-center gap-1.5">
+                            <input
+                              type="color"
+                              value={formData.color || '#1B3A8C'}
+                              onChange={e => setText('color', e.target.value)}
+                              className="w-7 h-7 rounded-lg border border-slate-300 cursor-pointer p-0 overflow-hidden"
+                            />
+                            <span className="text-[11px]">Otro Color</span>
+                          </label>
+                        </div>
+                      </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
                       <FileUploadField

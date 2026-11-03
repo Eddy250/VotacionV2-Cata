@@ -198,6 +198,11 @@ try {
             handle_export_audit();
             exit;
         }
+
+        if ($sub === 'reset' || $sub === 'limpiar') {
+            handle_admin_reset($adminActual);
+            exit;
+        }
     }
 
     // Si ninguna ruta coincidió

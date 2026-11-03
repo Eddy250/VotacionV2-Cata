@@ -52,6 +52,7 @@ function insertCandidato($nombre, $descripcion = null, $foto = null, $extras = [
     $regidor_salud_foto = _sanitize_relative_path($extras['regidor_salud_foto'] ?? null);
     $regidor_derechos_foto = _sanitize_relative_path($extras['regidor_derechos_foto'] ?? null);
     $propuestas_pdf     = _sanitize_relative_path($extras['propuestas_pdf'] ?? null);
+    $color              = !empty($extras['color']) ? trim($extras['color']) : null;
     
     $sedeName = !empty($extras['sede']) ? normalize_sede_name($extras['sede']) : normalize_sede_name(get_active_sede());
     $targetSlug = normalize_sede_slug($sedeName);
@@ -60,10 +61,10 @@ function insertCandidato($nombre, $descripcion = null, $foto = null, $extras = [
     $stmt = $db->prepare(
         'INSERT INTO candidatos (nombre, descripcion, foto, slogan, logo, propuestas, 
          alcalde, teniente, regidor_educacion, regidor_salud, regidor_derechos,
-         alcalde_foto, teniente_foto, regidor_educacion_foto, regidor_salud_foto, regidor_derechos_foto, propuestas_pdf, sede) 
+         alcalde_foto, teniente_foto, regidor_educacion_foto, regidor_salud_foto, regidor_derechos_foto, propuestas_pdf, sede, color) 
          VALUES (:nombre, :descripcion, :foto, :slogan, :logo, :propuestas,
          :alcalde, :teniente, :regidor_educacion, :regidor_salud, :regidor_derechos,
-         :alcalde_foto, :teniente_foto, :regidor_educacion_foto, :regidor_salud_foto, :regidor_derechos_foto, :propuestas_pdf, :sede)'
+         :alcalde_foto, :teniente_foto, :regidor_educacion_foto, :regidor_salud_foto, :regidor_derechos_foto, :propuestas_pdf, :sede, :color)'
     );
 
     $stmt->execute([
@@ -76,7 +77,8 @@ function insertCandidato($nombre, $descripcion = null, $foto = null, $extras = [
         'regidor_educacion_foto' => $regidor_edu_foto, 'regidor_salud_foto' => $regidor_salud_foto,
         'regidor_derechos_foto' => $regidor_derechos_foto,
         'propuestas_pdf' => $propuestas_pdf,
-        'sede' => $sedeName
+        'sede' => $sedeName,
+        'color' => $color
     ]);
 
     return (int)$db->lastInsertId();
@@ -95,7 +97,7 @@ function updateCandidato($id, $nombre = null, $descripcion = null, $foto = null,
     $extraFields = ['slogan', 'logo', 'propuestas', 'alcalde', 'teniente', 
                     'regidor_educacion', 'regidor_salud', 'regidor_derechos',
                     'alcalde_foto', 'teniente_foto', 'regidor_educacion_foto', 
-                    'regidor_salud_foto', 'regidor_derechos_foto', 'propuestas_pdf', 'sede'];
+                    'regidor_salud_foto', 'regidor_derechos_foto', 'propuestas_pdf', 'sede', 'color'];
     foreach ($extraFields as $ef) {
         if (isset($extras[$ef])) {
             $fields[$ef] = ($ef === 'sede') ? normalize_sede_name($extras[$ef]) : $extras[$ef];

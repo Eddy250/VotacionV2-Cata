@@ -31,12 +31,19 @@ const Voting = ({ voter, setVoter }) => {
     fetchCandidatos();
   }, []);
 
+  const getReturnUrna = () => {
+    if (voter?.sede && voter.sede.toLowerCase().includes('jeru')) {
+      return '/Urna-Jerusalen';
+    }
+    return '/Urna-Central';
+  };
+
   // Temporizador de inactividad (90 segundos de seguridad en la cabina)
   useEffect(() => {
     let timer = setTimeout(() => {
       alert("La sesión se cerró por inactividad para proteger tu voto.");
       setVoter(null);
-      navigate('/');
+      navigate(getReturnUrna());
     }, 90000);
 
     const resetTimer = () => {
@@ -44,7 +51,7 @@ const Voting = ({ voter, setVoter }) => {
       timer = setTimeout(() => {
         alert("La sesión se cerró por inactividad para proteger tu voto.");
         setVoter(null);
-        navigate('/');
+        navigate(getReturnUrna());
       }, 90000);
     };
 
@@ -69,7 +76,7 @@ const Voting = ({ voter, setVoter }) => {
       setSuccess(true);
       setTimeout(() => {
         setVoter(null);
-        navigate('/');
+        navigate(getReturnUrna());
       }, 3500);
     } catch (err) {
       alert(err.response?.data?.error || "Hubo un error al guardar tu voto.");
@@ -79,41 +86,72 @@ const Voting = ({ voter, setVoter }) => {
 
   if (success) {
     return (
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="rounded-3xl p-10 max-w-lg w-full text-center shadow-xl border"
-        style={{ backgroundColor: '#FFFFFF', borderColor: '#C7D9FF' }}
+      <div 
+        className="fixed inset-0 min-h-screen w-full flex items-center justify-center p-4 sm:p-6 z-50 overflow-hidden"
+        style={{ backgroundColor: '#F3F6FD' }}
       >
-        <div className="flex justify-center mb-5">
-          <img src={logoColegioAzul} alt="Logo CATA" className="w-16 h-16 object-contain drop-shadow" />
-        </div>
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ type: 'spring', delay: 0.2 }}
-          className="mx-auto w-20 h-20 rounded-full flex items-center justify-center mb-5"
-          style={{ backgroundColor: '#EEF4FF' }}
-        >
-          <CheckCircle2 className="w-12 h-12" style={{ color: BLUE }} />
-        </motion.div>
-        <h2 className="text-3xl font-extrabold mb-2" style={{ color: '#111827' }}>
-          ¡Voto Registrado Exitosamente!
-        </h2>
-        <p className="text-lg mb-8" style={{ color: '#6B7280' }}>
-          Gracias por cumplir con tu deber cívico, <strong style={{ color: BLUE }}>{voter.nombre}</strong>.
-        </p>
-        <div className="w-full rounded-full h-2 overflow-hidden" style={{ backgroundColor: '#E5E7EB' }}>
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: '100%' }}
-            transition={{ duration: 3.5, ease: "linear" }}
-            className="h-full rounded-full"
-            style={{ backgroundColor: BLUE }}
+        {/* Marca de agua / Logo de fondo gigante */}
+        <div className="fixed inset-0 pointer-events-none flex items-center justify-center z-0 overflow-hidden select-none">
+          <img 
+            src={logoColegioAzul} 
+            alt="" 
+            className="w-[70vw] max-w-[600px] max-h-[70vh] h-auto object-contain opacity-[0.08] filter drop-shadow select-none" 
           />
         </div>
-        <p className="text-xs mt-3" style={{ color: '#9CA3AF' }}>Cerrando sesión automáticamente...</p>
-      </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9, y: 15 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: "easeOut" }}
+          className="rounded-3xl p-8 sm:p-10 max-w-lg w-full text-center shadow-2xl relative z-10 border border-slate-200"
+          style={{ backgroundColor: '#FFFFFF' }}
+        >
+          {/* Barra superior de acento azul */}
+          <div className="absolute top-0 left-0 w-full h-2.5 rounded-t-3xl" style={{ backgroundColor: BLUE }}></div>
+
+          <div className="flex justify-center mb-4">
+            <div className="w-20 h-20 p-1 flex items-center justify-center">
+              <img src={logoColegioAzul} alt="Logo CATA" className="w-full h-full object-contain filter drop-shadow-sm" />
+            </div>
+          </div>
+
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.15 }}
+            className="mx-auto w-20 h-20 rounded-full flex items-center justify-center mb-4 shadow-sm"
+            style={{ backgroundColor: '#EEF4FF' }}
+          >
+            <CheckCircle2 className="w-12 h-12" style={{ color: BLUE }} />
+          </motion.div>
+
+          <span className="inline-block text-[10px] font-black uppercase tracking-wider text-blue-900 bg-blue-50 px-3.5 py-1 rounded-full border border-blue-200 mb-2">
+            Colegio Adventista Túpac Amaru
+          </span>
+
+          <h2 className="text-2xl sm:text-3xl font-black mb-2 tracking-tight" style={{ color: '#111827' }}>
+            ¡Voto Registrado Exitosamente!
+          </h2>
+
+          <p className="text-base sm:text-lg mb-8 leading-relaxed" style={{ color: '#4B5563' }}>
+            Gracias por cumplir con tu deber cívico, <strong className="font-extrabold" style={{ color: BLUE }}>{voter?.nombre}</strong>.
+          </p>
+
+          <div className="w-full rounded-full h-2.5 overflow-hidden bg-slate-100 p-0.5 border border-slate-200">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: '100%' }}
+              transition={{ duration: 3.5, ease: "linear" }}
+              className="h-full rounded-full"
+              style={{ backgroundColor: BLUE }}
+            />
+          </div>
+
+          <p className="text-xs font-semibold mt-3 text-slate-400">
+            Cerrando sesión automáticamente...
+          </p>
+        </motion.div>
+      </div>
     );
   }
 
@@ -159,7 +197,7 @@ const Voting = ({ voter, setVoter }) => {
             </span>
           )}
           <button
-            onClick={() => { setVoter(null); navigate('/') }}
+            onClick={() => { setVoter(null); navigate(getReturnUrna()); }}
             title="Cerrar y Salir"
             className="p-2 rounded-full transition-colors"
             style={{ backgroundColor: '#FEF2F2', color: '#DC2626' }}

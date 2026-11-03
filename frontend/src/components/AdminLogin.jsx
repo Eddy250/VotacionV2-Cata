@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import api from '../api';
 import { motion } from 'framer-motion';
-import { ShieldCheck, LogIn, Lock, Mail, AlertCircle, Info } from 'lucide-react';
+import { ShieldCheck, LogIn, Lock, Mail, AlertCircle } from 'lucide-react';
 import logoColegioAzul from '../assets/logo-colegio-azul.png';
 
 const BLUE = '#1B3A8C';
 const BLUE_DARK = '#142D6E';
 
-const AdminLogin = ({ onLoginSuccess }) => {
+const AdminLogin = ({ onLoginSuccess, onCancel }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -87,7 +87,7 @@ const AdminLogin = ({ onLoginSuccess }) => {
               style={{ backgroundColor: '#FFFFFF', borderColor: '#D1D5DB', color: '#111827' }}
               onFocus={e => e.target.style.borderColor = BLUE}
               onBlur={e => e.target.style.borderColor = '#D1D5DB'}
-              placeholder="profesor@cata.edu.pe"
+              placeholder="*****@cata.edu.pe"
               required
               autoFocus
             />
@@ -106,7 +106,6 @@ const AdminLogin = ({ onLoginSuccess }) => {
               style={{ backgroundColor: '#FFFFFF', borderColor: '#D1D5DB', color: '#111827' }}
               onFocus={e => e.target.style.borderColor = BLUE}
               onBlur={e => e.target.style.borderColor = '#D1D5DB'}
-              placeholder="••••••••"
               required
             />
           </div>
@@ -124,17 +123,17 @@ const AdminLogin = ({ onLoginSuccess }) => {
             <>Iniciar Sesión <LogIn className="w-5 h-5" /></>
           )}
         </button>
-      </form>
 
-      <div className="mt-8 p-4 rounded-2xl text-xs" style={{ backgroundColor: '#F9FAFB', border: '1px solid #E5E7EB', color: '#4B5563' }}>
-        <div className="flex items-center gap-1.5 font-bold mb-1.5" style={{ color: BLUE }}>
-          <Info className="w-4 h-4" /> Credenciales configuradas para pruebas:
-        </div>
-        <ul className="space-y-1 font-mono">
-          <li>• <span className="font-bold" style={{ color: '#374151' }}>profesor@cata.edu.pe</span> / cata2026</li>
-          <li>• <span className="font-bold" style={{ color: '#374151' }}>director@cata.edu.pe</span> / admin2026</li>
-        </ul>
-      </div>
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="w-full mt-3 py-2 text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors cursor-pointer text-center"
+          >
+            ← Volver al modo votación / portal
+          </button>
+        )}
+      </form>
     </motion.div>
   </div>
   );

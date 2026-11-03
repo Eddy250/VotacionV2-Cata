@@ -12,13 +12,13 @@ const QrCampaignGenerator = () => {
   const defaultBase = `${window.location.protocol}//${detectedHost}`;
 
   const [mode, setMode] = useState('portal'); // 'portal', 'urna', 'custom'
-  const [customUrl, setCustomUrl] = useState(`${defaultBase}/portal`);
+  const [customUrl, setCustomUrl] = useState(`${defaultBase}/`);
   const [copied, setCopied] = useState(false);
 
   // Determinar la URL final según el modo
   const getActiveUrl = () => {
-    if (mode === 'portal') return `${defaultBase}/portal`;
-    if (mode === 'urna') return `${defaultBase}/`;
+    if (mode === 'portal') return `${defaultBase}/`;
+    if (mode === 'urna') return `${defaultBase}/Urna`;
     return customUrl;
   };
 

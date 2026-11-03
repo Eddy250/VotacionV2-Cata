@@ -11,13 +11,26 @@ const BLUE_DARK = '#142D6E';
 const BLUE_LIGHT = '#EEF4FF';
 const BLUE_BORDER = '#C7D9FF';
 
-const Login = ({ setVoter }) => {
+const Login = ({ setVoter, forcedSede }) => {
   const [codigo, setCodigo] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [cabinaSede, setLocalCabinaSede] = useState(getCabinaSede());
+  const [cabinaSede, setLocalCabinaSede] = useState(() => {
+    if (forcedSede) {
+      setCabinaSede(forcedSede);
+      return forcedSede;
+    }
+    return getCabinaSede();
+  });
   const [showConfigModal, setShowConfigModal] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (forcedSede && forcedSede !== cabinaSede) {
+      setCabinaSede(forcedSede);
+      setLocalCabinaSede(forcedSede);
+    }
+  }, [forcedSede]);
 
   const handleSelectCabinaSede = (sedeKey) => {
     setCabinaSede(sedeKey);

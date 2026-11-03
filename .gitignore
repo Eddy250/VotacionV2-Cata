@@ -19,3 +19,8 @@ Thumbs.db
 .git_root_backup/
 backend_git_backup/
 init_jerusalen.py
+backend/*.py
+backend/*debug*.png
+backend/middle_right.png
+backend/data/backups/
+

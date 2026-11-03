@@ -63,7 +63,8 @@ function crearTablasSiNoExisten()
                 regidor_educacion_foto VARCHAR(255) NULL,
                 regidor_salud_foto VARCHAR(255) NULL,
                 regidor_derechos_foto VARCHAR(255) NULL,
-                propuestas_pdf VARCHAR(255) NULL
+                propuestas_pdf VARCHAR(255) NULL,
+                color VARCHAR(50) NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
             CREATE TABLE IF NOT EXISTS votos (
@@ -138,7 +139,8 @@ function crearTablasSiNoExisten()
                 regidor_educacion_foto TEXT,
                 regidor_salud_foto TEXT,
                 regidor_derechos_foto TEXT,
-                propuestas_pdf TEXT
+                propuestas_pdf TEXT,
+                color TEXT
             );
 
             CREATE TABLE IF NOT EXISTS votos (
@@ -247,7 +249,8 @@ function _actualizarEsquemaBDSede()
                 'regidor_salud_foto' => 'VARCHAR(255) NULL',
                 'regidor_derechos_foto' => 'VARCHAR(255) NULL',
                 'propuestas_pdf' => 'VARCHAR(255) NULL',
-                'sede' => "VARCHAR(100) DEFAULT 'Sede Central'"
+                'sede' => "VARCHAR(100) DEFAULT 'Sede Central'",
+                'color' => 'VARCHAR(50) NULL'
             ];
             foreach ($nuevasCandidato as $col => $tipo) {
                 if (!in_array($col, $candCols)) {

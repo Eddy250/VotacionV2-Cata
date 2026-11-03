@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, UserCog, LogOut, FileSpreadsheet, ClipboardList, ShieldCheck, QrCode } from 'lucide-react';
+import { LayoutDashboard, UserCog, LogOut, FileSpreadsheet, ClipboardList, ShieldCheck, QrCode, Settings } from 'lucide-react';
 
 import AdminLogin from './AdminLogin';
 import ExcelImporter from './ExcelImporter';
@@ -8,26 +8,30 @@ import StudentMonitor from './StudentMonitor';
 import DashboardStats from './DashboardStats';
 import CandidateManager from './CandidateManager';
 import QrCampaignGenerator from './QrCampaignGenerator';
+import MaintenanceModal from './MaintenanceModal';
 import logoColegioAzul from '../assets/logo-colegio-azul.png';
 
 const BLUE = '#1B3A8C';
 
-const Admin = () => {
+const Admin = ({ onLogoutDocente }) => {
   const [adminUser, setAdminUser] = useState(() => {
     const saved = localStorage.getItem('cata_admin_user');
     return saved ? JSON.parse(saved) : null;
   });
 
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [showMaintenance, setShowMaintenance] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const handleLogout = () => {
     localStorage.removeItem('cata_admin_token');
     localStorage.removeItem('cata_admin_user');
     setAdminUser(null);
+    if (onLogoutDocente) onLogoutDocente();
   };
 
   if (!adminUser) {
-    return <AdminLogin onLoginSuccess={(user) => setAdminUser(user)} />;
+    return <AdminLogin onLoginSuccess={(user) => setAdminUser(user)} onCancel={onLogoutDocente} />;
   }
 
   return (
@@ -84,87 +88,108 @@ const Admin = () => {
           </div>
         </div>
 
-        {/* Barra de Módulos / Navegación */}
-        <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-white/90 backdrop-blur-md rounded-2xl border border-slate-200 shadow-md mb-8">
-          <button 
-            onClick={() => setActiveTab('dashboard')} 
-            className={`flex flex-1 md:flex-none justify-center items-center gap-2 px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${
-              activeTab === 'dashboard' 
-                ? 'bg-[#1B3A8C] text-white shadow-md' 
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            <LayoutDashboard size={17} /> Resultados
-          </button>
-          <button 
-            onClick={() => setActiveTab('alumnos')} 
-            className={`flex flex-1 md:flex-none justify-center items-center gap-2 px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${
-              activeTab === 'alumnos' 
-                ? 'bg-[#1B3A8C] text-white shadow-md' 
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            <ClipboardList size={17} /> Padrón en Vivo
-          </button>
-          <button 
-            onClick={() => setActiveTab('excel')} 
-            className={`flex flex-1 md:flex-none justify-center items-center gap-2 px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${
-              activeTab === 'excel' 
-                ? 'bg-[#1B3A8C] text-white shadow-md' 
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            <FileSpreadsheet size={17} /> Carga Multi-Excel
-          </button>
-          <button 
-            onClick={() => setActiveTab('candidatos')} 
-            className={`flex flex-1 md:flex-none justify-center items-center gap-2 px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${
-              activeTab === 'candidatos' 
-                ? 'bg-[#1B3A8C] text-white shadow-md' 
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            <UserCog size={17} /> Candidatos
-          </button>
-          <button 
-            onClick={() => setActiveTab('qr')} 
-            className={`flex flex-1 md:flex-none justify-center items-center gap-2 px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${
-              activeTab === 'qr' 
-                ? 'bg-[#1B3A8C] text-white shadow-md' 
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            <QrCode size={17} /> QR Campaña
-          </button>
+        {/* Barra de Módulos / Navegación con Engranaje de Mantenimiento a la Derecha */}
+        <div className="flex flex-wrap items-center justify-between gap-1.5 p-1.5 bg-white/90 backdrop-blur-md rounded-2xl border border-slate-200 shadow-md mb-8">
+          <div className="flex flex-wrap items-center gap-1.5 flex-1 min-w-0">
+            <button 
+              onClick={() => setActiveTab('dashboard')} 
+              className={`flex flex-1 md:flex-none justify-center items-center gap-2 px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${
+                activeTab === 'dashboard' 
+                  ? 'bg-[#1B3A8C] text-white shadow-md' 
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <LayoutDashboard size={17} /> Resultados
+            </button>
+            <button 
+              onClick={() => setActiveTab('alumnos')} 
+              className={`flex flex-1 md:flex-none justify-center items-center gap-2 px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${
+                activeTab === 'alumnos' 
+                  ? 'bg-[#1B3A8C] text-white shadow-md' 
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <ClipboardList size={17} /> Padrón en Vivo
+            </button>
+            <button 
+              onClick={() => setActiveTab('excel')} 
+              className={`flex flex-1 md:flex-none justify-center items-center gap-2 px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${
+                activeTab === 'excel' 
+                  ? 'bg-[#1B3A8C] text-white shadow-md' 
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <FileSpreadsheet size={17} /> Carga Multi-Excel
+            </button>
+            <button 
+              onClick={() => setActiveTab('candidatos')} 
+              className={`flex flex-1 md:flex-none justify-center items-center gap-2 px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${
+                activeTab === 'candidatos' 
+                  ? 'bg-[#1B3A8C] text-white shadow-md' 
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <UserCog size={17} /> Candidatos
+            </button>
+            <button 
+              onClick={() => setActiveTab('qr')} 
+              className={`flex flex-1 md:flex-none justify-center items-center gap-2 px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${
+                activeTab === 'qr' 
+                  ? 'bg-[#1B3A8C] text-white shadow-md' 
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <QrCode size={17} /> QR Campaña
+            </button>
+          </div>
+
+          {/* Botón de Engranaje para Mantenimiento y Puesta a Cero (esquina derecha solicitada) */}
+          <div className="flex items-center pl-2 pr-1 shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowMaintenance(true)}
+              title="Mantenimiento Electoral y Puesta a Cero (Reset)"
+              className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-red-50 hover:border-red-200 text-slate-600 hover:text-red-600 transition-all shadow-xs cursor-pointer group"
+            >
+              <Settings size={20} className="group-hover:rotate-45 transition-transform duration-300" />
+            </button>
+          </div>
         </div>
 
         <AnimatePresence mode="wait">
           {activeTab === 'dashboard' && (
-            <motion.div key="dashboard" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -15 }}>
+            <motion.div key={`dashboard-${refreshKey}`} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -15 }}>
               <DashboardStats handleLogout={handleLogout} />
             </motion.div>
           )}
           {activeTab === 'alumnos' && (
-            <motion.div key="alumnos" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -15 }}>
+            <motion.div key={`alumnos-${refreshKey}`} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -15 }}>
               <StudentMonitor />
             </motion.div>
           )}
           {activeTab === 'excel' && (
-            <motion.div key="excel" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -15 }}>
+            <motion.div key={`excel-${refreshKey}`} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -15 }}>
               <ExcelImporter />
             </motion.div>
           )}
           {activeTab === 'candidatos' && (
-            <motion.div key="candidatos" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -15 }}>
+            <motion.div key={`candidatos-${refreshKey}`} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -15 }}>
               <CandidateManager />
             </motion.div>
           )}
           {activeTab === 'qr' && (
-            <motion.div key="qr" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -15 }}>
+            <motion.div key={`qr-${refreshKey}`} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -15 }}>
               <QrCampaignGenerator />
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Modal de Mantenimiento y Puesta a Cero */}
+        <MaintenanceModal
+          isOpen={showMaintenance}
+          onClose={() => setShowMaintenance(false)}
+          onActionSuccess={() => setRefreshKey(k => k + 1)}
+        />
       </div>
     </div>
   );

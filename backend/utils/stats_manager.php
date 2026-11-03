@@ -18,6 +18,8 @@ class StatsManager {
             $paramsVoters['ngs'] = $ngs;
             $whereVotos[] = 'ngs = :ngs';
             $paramsVotos['ngs'] = $ngs;
+        } else {
+            $whereVoters[] = "(ngs NOT LIKE '%A_OS%' AND ngs NOT LIKE '%INICIAL%')";
         }
 
         // Total alumnos
@@ -36,12 +38,16 @@ class StatsManager {
 
         $porcentaje_participacion = ($total_alumnos > 0) ? round(($votos_emitidos / $total_alumnos) * 100, 1) : 0.0;
 
-        // Candidatos de esta sede
-        $candidatos = db_query('SELECT id, nombre, foto, logo, sede FROM candidatos ORDER BY id ASC', [], $sedeSlug)->fetchAll();
+        // Candidatos de esta sede (incluyendo color representativo de lista)
+        $candidatos = db_query('SELECT id, nombre, foto, logo, color, sede FROM candidatos ORDER BY id ASC', [], $sedeSlug)->fetchAll();
 
         $resultados = [];
         $chart_labels = [];
         $chart_data = [];
+        $chart_colors = [];
+
+        $defaultPalette = ['#1B3A8C', '#E11D48', '#F59E0B', '#10B981', '#8B5CF6', '#F97316', '#06B6D4', '#EC4899'];
+        $colorIndex = 0;
 
         foreach ($candidatos as $c) {
             $sqlC = 'SELECT COUNT(*) FROM votos WHERE candidato_id = :cid';
@@ -54,11 +60,23 @@ class StatsManager {
             $votos_c = (int)db_query($sqlC, $paramsC, $sedeSlug)->fetchColumn();
             $pct_c = ($votos_emitidos > 0) ? round(($votos_c / $votos_emitidos) * 100, 1) : 0.0;
 
+            // Determinar color de barra representativo
+            $cColor = !empty($c['color']) ? trim($c['color']) : null;
+            if (!$cColor) {
+                if (stripos($c['nombre'], 'blanco') !== false || stripos($c['nombre'], 'nulo') !== false) {
+                    $cColor = '#94A3B8';
+                } else {
+                    $cColor = $defaultPalette[$colorIndex % count($defaultPalette)];
+                    $colorIndex++;
+                }
+            }
+
             $resultados[] = [
                 'id' => (int)$c['id'],
                 'nombre' => $c['nombre'],
                 'foto' => $c['foto'],
                 'logo' => $c['logo'],
+                'color' => $cColor,
                 'sede' => normalize_sede_name($sedeSlug),
                 'votos' => $votos_c,
                 'porcentaje' => $pct_c
@@ -66,6 +84,7 @@ class StatsManager {
 
             $chart_labels[] = $c['nombre'];
             $chart_data[] = $votos_c;
+            $chart_colors[] = $cColor;
         }
 
         usort($resultados, function($a, $b) {
@@ -80,7 +99,8 @@ class StatsManager {
             'porcentaje_participacion' => $porcentaje_participacion,
             'resultados' => $resultados,
             'chart_labels' => $chart_labels,
-            'chart_data' => $chart_data
+            'chart_data' => $chart_data,
+            'chart_colors' => $chart_colors
         ];
     }
 
@@ -117,9 +137,11 @@ class StatsManager {
 
         $chart_labels = [];
         $chart_data = [];
+        $chart_colors = [];
         foreach ($resultadosConsolidados as $rc) {
             $chart_labels[] = $rc['nombre'] . ' (' . ($rc['sede'] === 'Sede Jerusalén' ? 'Jeru' : 'Cent') . ')';
             $chart_data[] = $rc['votos'];
+            $chart_colors[] = $rc['color'] ?? '#1B3A8C';
         }
 
         return [
@@ -129,6 +151,7 @@ class StatsManager {
             'resultados' => $resultadosConsolidados,
             'chart_labels' => $chart_labels,
             'chart_data' => $chart_data,
+            'chart_colors' => $chart_colors,
             'sedes_desglose' => [
                 'central' => $centralStats,
                 'jerusalen' => $jeruStats

@@ -25,6 +25,7 @@ function handle_admin_login() {
 
     $res = adminLogin($email, $password);
     if (!$res) {
+        usleep(200000); // Mitigación contra ataques de fuerza bruta automatizados
         http_response_code(401);
         echo json_encode(['error' => 'Credenciales inválidas. Verifica tu correo y contraseña docente.']);
         return;
@@ -156,6 +157,7 @@ function _candidato_to_response($c) {
         'regidor_salud' => $c['regidor_salud'] ?? null,
         'regidor_derechos' => $c['regidor_derechos'] ?? null,
         'sede' => $c['sede'] ?? 'Sede Principal',
+        'color' => $c['color'] ?? null,
         'propuestas_pdf' => !empty($c['propuestas_pdf']) ? ('/static/' . ltrim(preg_replace('#^/*(static/)+#i', '', $c['propuestas_pdf']), '/')) : null
     ];
     foreach ($fotoFields as $field) {
@@ -196,7 +198,7 @@ function handle_admin_candidatos() {
         // Construir extras
         $extras = [];
         $textFields = ['slogan', 'propuestas', 'alcalde', 'teniente', 
-                       'regidor_educacion', 'regidor_salud', 'regidor_derechos', 'sede'];
+                       'regidor_educacion', 'regidor_salud', 'regidor_derechos', 'sede', 'color'];
         foreach ($textFields as $tf) {
             if (isset($_POST[$tf])) $extras[$tf] = trim($_POST[$tf]);
         }
@@ -249,6 +251,7 @@ function handle_admin_candidato_manage($id) {
             if ($raw) {
                 $nombre = isset($raw['nombre']) ? trim($raw['nombre']) : null;
                 $descripcion = isset($raw['descripcion']) ? trim($raw['descripcion']) : null;
+                if (isset($raw['color'])) $extras['color'] = trim($raw['color']);
             }
         }
 
@@ -259,7 +262,7 @@ function handle_admin_candidato_manage($id) {
         // Construir extras
         $extras = [];
         $textFields = ['slogan', 'propuestas', 'alcalde', 'teniente', 
-                       'regidor_educacion', 'regidor_salud', 'regidor_derechos', 'sede'];
+                       'regidor_educacion', 'regidor_salud', 'regidor_derechos', 'sede', 'color'];
         foreach ($textFields as $tf) {
             if (isset($_POST[$tf])) $extras[$tf] = trim($_POST[$tf]);
         }
@@ -342,29 +345,61 @@ function handle_export_audit() {
         return;
     }
 
+    $sede = isset($_GET['sede']) ? trim($_GET['sede']) : 'todos';
+    $ngs = isset($_GET['ngs']) ? trim($_GET['ngs']) : 'todos';
+
+    $safeNgs = ($ngs !== 'todos') ? preg_replace('/[^a-zA-Z0-9_-]/', '_', $ngs) : 'TODOS';
+    $filename = 'padron_auditoria_' . strtolower($safeNgs) . '_' . date('Y-m-d_His') . '.csv';
+
     header('Content-Type: text/csv; charset=UTF-8');
-    header('Content-Disposition: attachment; filename="padron_auditoria_cata_' . date('Y-m-d_His') . '.csv"');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
     header('Pragma: no-cache');
     header('Expires: 0');
 
     $salida = fopen('php://output', 'w');
+    // BOM UTF-8 para Excel
     fprintf($salida, chr(0xEF).chr(0xBB).chr(0xBF));
 
-    fputcsv($salida, ['CÓDIGO_SECRETO', 'DNI', 'CÓD_ORIGINAL', 'APELLIDOS_Y_NOMBRES', 'SEDE', 'SALON_NGS', 'ESTADO_VOTO', 'FECHA_HORA_VOTO']);
+    // Usar punto y coma (;) como delimitador estándar para que Excel en Windows/Español lo divida en columnas automáticamente
+    fputcsv($salida, ['N°', 'ESTADO_VOTO', 'FECHA_HORA_VOTO', 'APELLIDOS_Y_NOMBRES', 'DNI', 'SALON_NGS', 'GRADO', 'SECCION', 'SEDE'], ';');
 
-    $sede = isset($_GET['sede']) ? trim($_GET['sede']) : 'todos';
-    $voters = getAllVoters($sede);
+    $voters = getAllVoters($sede, $ngs);
+    $num = 1;
     foreach ($voters as $v) {
+        $grado = $v['grado'] ?? '';
+        $seccion = $v['seccion'] ?? '';
+        if (!$grado || !$seccion) {
+            $ngsUpper = mb_strtoupper($v['ngs'] ?? '', 'UTF-8');
+            if (!$grado) {
+                if (strpos($ngsUpper, 'PRIMER') !== false || preg_match('/\b1\b|1°|1º/u', $ngsUpper)) $grado = '1°';
+                elseif (strpos($ngsUpper, 'SEGUND') !== false || preg_match('/\b2\b|2°|2º/u', $ngsUpper)) $grado = '2°';
+                elseif (strpos($ngsUpper, 'TERCER') !== false || preg_match('/\b3\b|3°|3º/u', $ngsUpper)) $grado = '3°';
+                elseif (strpos($ngsUpper, 'CUART') !== false || preg_match('/\b4\b|4°|4º/u', $ngsUpper)) $grado = '4°';
+                elseif (strpos($ngsUpper, 'QUINT') !== false || preg_match('/\b5\b|5°|5º/u', $ngsUpper)) $grado = '5°';
+                elseif (strpos($ngsUpper, 'SEXT') !== false || preg_match('/\b6\b|6°|6º/u', $ngsUpper)) $grado = '6°';
+            }
+            if (!$seccion) {
+                if (preg_match('/(?:SECCI[OÓ]N|SEC\.?|AULA)\s*[:\-]?\s*([A-E])\b/u', $ngsUpper, $sm)) {
+                    $seccion = $sm[1];
+                } elseif (preg_match('/[1-6]\s*[\-_°º]?\s*([A-E])\b/u', $ngsUpper, $sm)) {
+                    $seccion = $sm[1];
+                } else {
+                    $seccion = 'ÚNICA';
+                }
+            }
+        }
+
         fputcsv($salida, [
-            $v['codigo'],
-            $v['dni'] ?? '',
-            $v['codigo_original'] ?? '',
-            $v['nombre'],
-            $v['sede'] ?? 'Sede Principal',
-            $v['ngs'] ?? '',
+            $num++,
             $v['ha_votado'] ? 'YA VOTO' : 'PENDIENTE',
-            $v['fecha_voto'] ?? ''
-        ]);
+            $v['fecha_voto'] ?? '-',
+            $v['nombre'],
+            $v['dni'] ?? ($v['codigo'] ?? '-'),
+            $v['ngs'] ?? '',
+            $grado,
+            $seccion,
+            $v['sede'] ?? 'Sede Central'
+        ], ';');
     }
 
     fclose($salida);
@@ -399,4 +434,126 @@ function handle_admin_election_state() {
     }
     http_response_code(405);
     echo json_encode(['error' => 'Método no permitido']);
+}
+
+// ---------- MANTENIMIENTO Y PUESTA A CERO ELECTORAL ----------
+
+function handle_admin_reset($adminActual) {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        http_response_code(405);
+        echo json_encode(['error' => 'Método no permitido']);
+        return;
+    }
+
+    $input = json_decode(file_get_contents('php://input'), true);
+    if (!$input) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Datos de solicitud inválidos.']);
+        return;
+    }
+
+    $password = $input['password'] ?? '';
+    $confirmPhrase = trim($input['confirm_phrase'] ?? '');
+    $action = strtolower(trim($input['action'] ?? '')); // 'urna', 'candidatos', 'padron', 'total'
+    $sedeTarget = strtolower(trim($input['sede'] ?? 'central')); // 'central', 'jerusalen', 'ambas'
+
+    // 1. Doble autenticación de seguridad: Validar contraseña del administrador actual
+    $adminDb = db_query('SELECT password_hash FROM admins WHERE id = :id', ['id' => $adminActual['id']])->fetch();
+    if (!$adminDb || !password_verify($password, $adminDb['password_hash'])) {
+        http_response_code(403);
+        echo json_encode(['error' => 'Contraseña docente incorrecta. Operación cancelada por seguridad.']);
+        return;
+    }
+
+    // 2. Doble autenticación de seguridad: Validar frase de confirmación exacta "Eliminar"
+    if ($confirmPhrase !== 'Eliminar') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Frase de confirmación incorrecta. Debe escribir exactamente "Eliminar" (con la E mayúscula y el resto en minúsculas).']);
+        return;
+    }
+
+    // 3. Validar acción
+    if (!in_array($action, ['urna', 'candidatos', 'padron', 'total'])) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Acción de limpieza no reconocida.']);
+        return;
+    }
+
+    // 4. Determinar sedes a procesar
+    $sedes = [];
+    if ($sedeTarget === 'ambas' || $sedeTarget === 'todos') {
+        $sedes = ['central', 'jerusalen'];
+    } elseif ($sedeTarget === 'jerusalen') {
+        $sedes = ['jerusalen'];
+    } else {
+        $sedes = ['central'];
+    }
+
+    // 5. Generar Respaldo Automático Previo (Salvavidas)
+    $backupDir = DATA_DIR . '/backups';
+    if (!is_dir($backupDir)) {
+        @mkdir($backupDir, 0777, true);
+    }
+    $ts = date('Ymd_His');
+    foreach ($sedes as $s) {
+        $dbFile = ($s === 'jerusalen') ? DB_FILE_JERUSALEN : DB_FILE_CENTRAL;
+        if (file_exists($dbFile)) {
+            $backupFile = "{$backupDir}/backup_{$s}_pre_{$action}_{$ts}.db";
+            @copy($dbFile, $backupFile);
+        }
+    }
+
+    // 6. Ejecutar la acción solicitada por cada sede
+    $mensajes = [];
+
+    foreach ($sedes as $s) {
+        $sedeNombre = normalize_sede_name($s);
+
+        if ($action === 'urna') {
+            db_query('DELETE FROM votos', [], $s);
+            db_query('UPDATE voters SET ha_votado = 0, fecha_voto = NULL', [], $s);
+            db_query('VACUUM', [], $s);
+            $mensajes[] = "Urna vaciada en {$sedeNombre}: votos en cero y padrón listo para votar.";
+        }
+
+        if ($action === 'candidatos') {
+            db_query('DELETE FROM votos', [], $s);
+            db_query('UPDATE voters SET ha_votado = 0, fecha_voto = NULL', [], $s);
+            db_query('DELETE FROM candidatos', [], $s);
+            insertCandidato('Voto en Blanco', 'Opción cívica democrática', null, [
+                'sede' => $sedeNombre,
+                'color' => '#94A3B8'
+            ]);
+            db_query('VACUUM', [], $s);
+            $mensajes[] = "Candidatos eliminados en {$sedeNombre}. Se conservó únicamente el Voto en Blanco oficial.";
+        }
+
+        if ($action === 'padron') {
+            db_query('DELETE FROM votos', [], $s);
+            db_query('DELETE FROM voters', [], $s);
+            db_query('VACUUM', [], $s);
+            $mensajes[] = "Padrón electoral vaciado por completo en {$sedeNombre}.";
+        }
+
+        if ($action === 'total') {
+            db_query('DELETE FROM votos', [], $s);
+            db_query('DELETE FROM voters', [], $s);
+            db_query('DELETE FROM candidatos', [], $s);
+            insertCandidato('Voto en Blanco', 'Opción cívica democrática', null, [
+                'sede' => $sedeNombre,
+                'color' => '#94A3B8'
+            ]);
+            db_query('VACUUM', [], $s);
+            $mensajes[] = "Reset Total ejecutado en {$sedeNombre}: sistema limpio y virgen para la elección.";
+        }
+    }
+
+    echo json_encode([
+        'success' => true,
+        'action' => $action,
+        'sede' => $sedeTarget,
+        'timestamp' => $ts,
+        'mensajes' => $mensajes,
+        'message' => implode(' | ', $mensajes)
+    ]);
 }
