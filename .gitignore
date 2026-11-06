@@ -7,8 +7,10 @@ dist/
 
 # Archivos de entorno y logs
 *.log
-.env
 .env.local
+
+# Respaldos y scripts temporales
+find_pass_temp.php
 
 # Archivos de sistema
 .DS_Store

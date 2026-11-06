@@ -3,6 +3,33 @@
 
 define('BASE_DIR', __DIR__);
 
+// Cargar archivo .env automáticamente si existe (compatible con hosting cPanel / Apache)
+$envCandidates = [
+    BASE_DIR . '/.env',
+    dirname(BASE_DIR) . '/.env',
+    BASE_DIR . '/../.env'
+];
+foreach ($envCandidates as $envFile) {
+    if (file_exists($envFile) && is_readable($envFile)) {
+        $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if ($line === '' || strpos($line, '#') === 0) continue;
+            if (strpos($line, '=') !== false) {
+                list($envKey, $envVal) = explode('=', $line, 2);
+                $envKey = trim($envKey);
+                $envVal = trim($envVal, " \t\n\r\0\x0B\"'");
+                if (getenv($envKey) === false) {
+                    putenv("{$envKey}={$envVal}");
+                    $_ENV[$envKey] = $envVal;
+                    $_SERVER[$envKey] = $envVal;
+                }
+            }
+        }
+        break;
+    }
+}
+
 // Configuración de Base de Datos
 // Opciones: 'sqlite' (por defecto) o 'mysql'
 define('DB_DRIVER', getenv('DB_DRIVER') ?: 'sqlite');
@@ -13,6 +40,10 @@ define('DB_PORT', getenv('DB_PORT') ?: '3306');
 define('DB_NAME', getenv('DB_NAME') ?: 'votacion_cata');
 define('DB_USER', getenv('DB_USER') ?: 'root');
 define('DB_PASS', getenv('DB_PASS') ?: '');
+
+// Credenciales maestras configurables vía .env
+define('ADMIN_ENV_EMAIL', getenv('ADMIN_EMAIL') ?: 'profesor@cata.edu.pe');
+define('ADMIN_ENV_PASS', getenv('ADMIN_PASSWORD') ?: 'cata2026');
 
 // Archivos SQLite protegidos en carpeta data/
 define('DATA_DIR', BASE_DIR . '/data');
