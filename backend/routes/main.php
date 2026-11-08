@@ -69,6 +69,7 @@ function handle_login() {
             'nombre' => $voter['nombre'],
             'sede' => $sedeName,
             'sede_slug' => $slug,
+            'nivel' => detect_voter_nivel($voter),
             'ngs' => $voter['ngs'] ?? '',
             'email' => $voter['email'] ?? null
         ]
@@ -91,10 +92,12 @@ function handle_get_candidatos() {
         return;
     }
     $sede = isset($_GET['sede']) ? trim($_GET['sede']) : get_active_sede();
-    $candidatos = getAllCandidatos($sede);
+    $nivel = isset($_GET['nivel']) ? trim($_GET['nivel']) : (isset($_SERVER['HTTP_X_NIVEL']) ? trim($_SERVER['HTTP_X_NIVEL']) : null);
+    $candidatos = getAllCandidatos($sede, $nivel, true);
     $resultado = [];
     $fotoFields = ['foto', 'logo', 'alcalde_foto', 'teniente_foto',
-                   'regidor_educacion_foto', 'regidor_salud_foto', 'regidor_derechos_foto'];
+                   'regidor_educacion_foto', 'regidor_salud_foto', 'regidor_emprendimiento_foto',
+                   'regidor_derechos_foto', 'regidor_comunicacion_foto'];
     foreach ($candidatos as $c) {
         $item = [
             'id' => (int)$c['id'],
@@ -103,12 +106,24 @@ function handle_get_candidatos() {
             'slogan' => $c['slogan'] ?? null,
             'propuestas' => $c['propuestas'] ?? null,
             'alcalde' => $c['alcalde'] ?? null,
+            'alcalde_grado' => $c['alcalde_grado'] ?? null,
             'teniente' => $c['teniente'] ?? null,
+            'teniente_grado' => $c['teniente_grado'] ?? null,
             'regidor_educacion' => $c['regidor_educacion'] ?? null,
+            'regidor_educacion_grado' => $c['regidor_educacion_grado'] ?? null,
             'regidor_salud' => $c['regidor_salud'] ?? null,
+            'regidor_salud_grado' => $c['regidor_salud_grado'] ?? null,
+            'regidor_emprendimiento' => $c['regidor_emprendimiento'] ?? null,
+            'regidor_emprendimiento_grado' => $c['regidor_emprendimiento_grado'] ?? null,
             'regidor_derechos' => $c['regidor_derechos'] ?? null,
+            'regidor_derechos_grado' => $c['regidor_derechos_grado'] ?? null,
+            'regidor_comunicacion' => $c['regidor_comunicacion'] ?? null,
+            'regidor_comunicacion_grado' => $c['regidor_comunicacion_grado'] ?? null,
             'propuestas_pdf' => $c['propuestas_pdf'] ?? null,
             'sede' => $c['sede'] ?? normalize_sede_name($sede),
+            'nivel' => $c['nivel'] ?? 'General',
+            'color' => $c['color'] ?? null,
+            'numero_lista' => $c['numero_lista'] ?? null
         ];
         foreach ($fotoFields as $ff) {
             $val = $c[$ff] ?? null;
@@ -183,6 +198,17 @@ function handle_voto() {
         return;
     }
 
+    $voterNivel = detect_voter_nivel($voter);
+
+    // Validación de Nivel Escolar en Sede Central (Primaria vs Secundaria)
+    if ($voterSedeSlug === 'central' && !empty($candidato['nivel']) && strtolower($candidato['nivel']) !== 'general') {
+        if (strtolower($candidato['nivel']) !== strtolower($voterNivel)) {
+            http_response_code(403);
+            echo json_encode(['error' => "Esta lista electoral corresponde al nivel {$candidato['nivel']}, pero perteneces al nivel {$voterNivel}."]);
+            return;
+        }
+    }
+
     $codigoReal = $voter['codigo'];
 
     // Protección de Concurrencia y Cola de Reintento Atómico
@@ -205,7 +231,7 @@ function handle_voto() {
                 return;
             }
 
-            insertVoto($codigoReal, $candidato_id, $voterSedeSlug, $voter['ngs'] ?? null);
+            insertVoto($codigoReal, $candidato_id, $voterSedeSlug, $voter['ngs'] ?? null, $voterNivel);
             setVoterVoted($codigoReal, $voterSedeSlug);
             $pdo->commit();
             $votoExitoso = true;

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import api from '../api';
-import { Search, Filter, CheckCircle2, Clock, Copy, Check, RefreshCw, Users, School, Download, FileSpreadsheet, X, CheckCheck } from 'lucide-react';
+import { Search, Filter, CheckCircle2, Clock, Copy, Check, RefreshCw, Users, School, Download, FileSpreadsheet, X, CheckCheck, Printer } from 'lucide-react';
+import OnpePadronModal from './OnpePadronModal';
 
 const BLUE = '#1B3A8C';
 
@@ -31,7 +32,7 @@ const parseGradoSeccion = (alumno) => {
     // 2. Detección de Sección
     if (!seccion) {
       const secLetterMatch = upper.match(/(?:SECCI[OÓ]N|SEC\.?|AULA)\s*[:\-]?\s*([A-E])\b/i) ||
-                             upper.match(/[1-6]\s*(?:°|º)?\s*([A-E])\b/i);
+        upper.match(/[1-6]\s*(?:°|º)?\s*([A-E])\b/i);
       if (secLetterMatch) {
         seccion = secLetterMatch[1].toUpperCase();
       } else if (upper.includes('UNIC')) {
@@ -102,6 +103,9 @@ const StudentMonitor = () => {
   const [modalEstado, setModalEstado] = useState('todos');
   const [modalDownloading, setModalDownloading] = useState(false);
 
+  // Estado del Modal de Lista de Electores Oficial ONPE
+  const [showOnpeModal, setShowOnpeModal] = useState(false);
+
   // Estado de descarga de reporte completo
   const [exportingReporte, setExportingReporte] = useState(false);
 
@@ -134,12 +138,13 @@ const StudentMonitor = () => {
   useEffect(() => {
     loadData(true);
     const interval = setInterval(() => {
-      if (!search.trim()) {
+      // Pausar actualización periódica si el modal ONPE está abierto o si el usuario está buscando
+      if (!search.trim() && !showOnpeModal) {
         loadData(false);
       }
-    }, 2500);
+    }, 3000);
     return () => clearInterval(interval);
-  }, [selectedSede, selectedNgs, selectedEstado]);
+  }, [selectedSede, selectedNgs, selectedEstado, showOnpeModal]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -335,8 +340,8 @@ const StudentMonitor = () => {
               <span className="text-sm font-black" style={{ color: BLUE }}>{resumen.porcentaje}%</span>
             </div>
             <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-              <div 
-                className="h-full rounded-full transition-all duration-500" 
+              <div
+                className="h-full rounded-full transition-all duration-500"
                 style={{ width: `${resumen.porcentaje}%`, backgroundColor: BLUE }}
               ></div>
             </div>
@@ -350,8 +355,8 @@ const StudentMonitor = () => {
           {/* Filtro Sede */}
           <div>
             <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Sede</label>
-            <select 
-              value={selectedSede} 
+            <select
+              value={selectedSede}
               onChange={(e) => setSelectedSede(e.target.value)}
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none transition-colors"
               onFocus={e => e.target.style.borderColor = BLUE}
@@ -367,8 +372,8 @@ const StudentMonitor = () => {
           {/* Filtro NGS / Salón */}
           <div>
             <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Salón (Grado y Sección)</label>
-            <select 
-              value={selectedNgs} 
+            <select
+              value={selectedNgs}
               onChange={(e) => setSelectedNgs(e.target.value)}
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none transition-colors"
               onFocus={e => e.target.style.borderColor = BLUE}
@@ -384,8 +389,8 @@ const StudentMonitor = () => {
           {/* Filtro Estado de Sufragio */}
           <div>
             <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Estado de Voto</label>
-            <select 
-              value={selectedEstado} 
+            <select
+              value={selectedEstado}
               onChange={(e) => setSelectedEstado(e.target.value)}
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none transition-colors"
               onFocus={e => e.target.style.borderColor = BLUE}
@@ -401,17 +406,17 @@ const StudentMonitor = () => {
           <div>
             <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Buscar Alumno / DNI</label>
             <form onSubmit={handleSearchSubmit} className="flex gap-2">
-              <input 
-                type="text" 
-                value={search} 
+              <input
+                type="text"
+                value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Nombre o DNI..."
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 outline-none transition-colors"
                 onFocus={e => e.target.style.borderColor = BLUE}
                 onBlur={e => e.target.style.borderColor = '#E2E8F0'}
               />
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 className="p-2.5 text-white rounded-xl transition-colors shadow-sm flex items-center justify-center cursor-pointer"
                 style={{ backgroundColor: BLUE }}
                 onMouseEnter={e => e.currentTarget.style.backgroundColor = '#142D6E'}
@@ -438,8 +443,18 @@ const StudentMonitor = () => {
 
           {/* Botones de Descarga y Actualización */}
           <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+            {/* Botón Lista de Electores Oficial ONPE */}
+            <button
+              onClick={() => setShowOnpeModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 text-slate-950 text-xs font-black rounded-xl shadow-md transition-all cursor-pointer bg-amber-400 hover:bg-amber-300 hover:scale-[1.02]"
+              title="Abrir generador e impresor de la Lista de Electores oficial en formato ONPE con código de barras y casilleros de firma y huella"
+            >
+              <Printer className="w-4 h-4 text-slate-950" />
+              <span>Lista de Electores (ONPE)</span>
+            </button>
+
             {/* Botón Principal: Abrir Modal para Escoger Grado y Sección */}
-            <button 
+            <button
               onClick={handleOpenExportModal}
               className="flex items-center gap-2 px-4 py-2.5 text-white text-xs font-extrabold rounded-xl shadow-sm transition-all cursor-pointer"
               style={{ backgroundColor: '#10B981' }}
@@ -447,12 +462,12 @@ const StudentMonitor = () => {
               onMouseLeave={e => e.currentTarget.style.backgroundColor = '#10B981'}
               title="Abrir selector de grado y sección para descargar en Excel"
             >
-              <Download className="w-4 h-4" /> 
+              <Download className="w-4 h-4" />
               <span>Descargar Padrón por Grado / Sección (.xlsx)</span>
             </button>
 
             {/* Botón Secundario: Descargar Reporte Completo de Auditoría */}
-            <button 
+            <button
               onClick={handleExportarReporteCompleto}
               disabled={exportingReporte}
               className="flex items-center gap-1.5 px-3.5 py-2.5 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
@@ -461,18 +476,18 @@ const StudentMonitor = () => {
               onMouseLeave={e => e.currentTarget.style.backgroundColor = BLUE}
               title="Descargar libro Excel con resumen de todos los salones y padrón completo"
             >
-              <FileSpreadsheet className="w-4 h-4" /> 
+              <FileSpreadsheet className="w-4 h-4" />
               <span>{exportingReporte ? 'Generando...' : 'Reporte Global Todos los Salones'}</span>
             </button>
 
             {/* Botón: Actualizar datos */}
-            <button 
+            <button
               onClick={loadData}
               disabled={loading}
               className="flex items-center gap-1.5 px-3 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
               title="Recargar datos de la base de datos"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> 
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
               <span className="hidden sm:inline">Actualizar</span>
             </button>
           </div>
@@ -539,8 +554,8 @@ const StudentMonitor = () => {
                           <span className="px-3 py-1.5 font-mono font-black text-sm tracking-wider rounded-xl shadow-inner border" style={{ backgroundColor: '#EEF4FF', color: BLUE, borderColor: '#C7D9FF' }}>
                             {dniVal}
                           </span>
-                          <button 
-                            onClick={() => copyToClipboard(dniVal)} 
+                          <button
+                            onClick={() => copyToClipboard(dniVal)}
                             title="Copiar DNI para votar"
                             className="p-1.5 text-slate-400 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
                             style={{ color: copiedCode === dniVal ? '#10B981' : undefined }}
@@ -593,7 +608,7 @@ const StudentMonitor = () => {
                   <p className="text-xs text-slate-500">Selecciona con exactitud el salón y los filtros a exportar</p>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => setShowExportModal(false)}
                 className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
               >
@@ -611,11 +626,10 @@ const StudentMonitor = () => {
                   <button
                     type="button"
                     onClick={() => setModalNgs('todos')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      modalNgs === 'todos' 
-                        ? 'bg-slate-800 text-white shadow-xs' 
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${modalNgs === 'todos'
+                        ? 'bg-slate-800 text-white shadow-xs'
                         : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                    }`}
+                      }`}
                   >
                     Todos
                   </button>
@@ -624,11 +638,10 @@ const StudentMonitor = () => {
                       key={idx}
                       type="button"
                       onClick={() => setModalNgs(ngsItem)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                        modalNgs === 'ngsItem' || modalNgs === ngsItem
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${modalNgs === 'ngsItem' || modalNgs === ngsItem
                           ? 'text-white shadow-xs'
                           : 'bg-white text-slate-700 border border-slate-200 hover:bg-emerald-50'
-                      }`}
+                        }`}
                       style={{
                         backgroundColor: modalNgs === ngsItem ? '#10B981' : undefined
                       }}
@@ -647,7 +660,7 @@ const StudentMonitor = () => {
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
                   1. Salón / Grado y Sección a Descargar:
                 </label>
-                <select 
+                <select
                   value={modalNgs}
                   onChange={(e) => setModalNgs(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 outline-none"
@@ -666,7 +679,7 @@ const StudentMonitor = () => {
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
                   2. Sede Institucional:
                 </label>
-                <select 
+                <select
                   value={modalSede}
                   onChange={(e) => setModalSede(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 outline-none"
@@ -685,7 +698,7 @@ const StudentMonitor = () => {
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
                   3. Estado de Votación:
                 </label>
-                <select 
+                <select
                   value={modalEstado}
                   onChange={(e) => setModalEstado(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 outline-none"
@@ -711,7 +724,7 @@ const StudentMonitor = () => {
 
             {/* Botones de Acción */}
             <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
-              <button 
+              <button
                 type="button"
                 onClick={() => setShowExportModal(false)}
                 disabled={modalDownloading}
@@ -719,7 +732,7 @@ const StudentMonitor = () => {
               >
                 Cancelar
               </button>
-              <button 
+              <button
                 type="button"
                 onClick={handleEjecutarDescargaModal}
                 disabled={modalDownloading}
@@ -735,6 +748,15 @@ const StudentMonitor = () => {
           </div>
         </div>
       )}
+
+      {/* MODAL OFICIAL ONPE DE LISTA DE ELECTORES IMPRIMIBLE */}
+      <OnpePadronModal
+        isOpen={showOnpeModal}
+        onClose={() => setShowOnpeModal(false)}
+        alumnosOriginales={alumnos}
+        sedes={sedesDisponibles}
+        salones={ngsDisponibles}
+      />
     </div>
   );
 };

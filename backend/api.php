@@ -124,6 +124,29 @@ try {
     }
 
     // ==========================================
+    // RUTAS PÚBLICAS DE AUTO-REGISTRO DE CANDIDATOS (LINK / TOKEN)
+    // ==========================================
+    if ($segments[0] === 'postulacion') {
+        require_once __DIR__ . '/routes/postulacion.php';
+        $sub = $segments[1] ?? 'info';
+        if ($sub === 'info') {
+            handle_postulacion_info();
+            exit;
+        }
+        if ($sub === 'buscar-alumno') {
+            handle_postulacion_buscar_alumno();
+            exit;
+        }
+        if ($sub === 'guardar') {
+            handle_postulacion_guardar();
+            exit;
+        }
+        http_response_code(404);
+        echo json_encode(['error' => 'Endpoint de postulación no encontrado']);
+        exit;
+    }
+
+    // ==========================================
     // RUTAS ADMINISTRATIVAS Y DOCENTES
     // ==========================================
     if ($segments[0] === 'admin') {
@@ -188,14 +211,33 @@ try {
                     handle_admin_parse_pdf();
                     exit;
                 }
+                if ($segments[2] === 'generar-token') {
+                    handle_admin_candidato_generar_token();
+                    exit;
+                }
                 $candidatoId = $segments[2];
                 handle_admin_candidato_manage($candidatoId);
+                exit;
+            }
+            if (count($segments) === 4 && $segments[3] === 'aprobar') {
+                $candidatoId = $segments[2];
+                handle_admin_candidato_aprobar($candidatoId);
                 exit;
             }
         }
 
         if ($sub === 'export') {
             handle_export_audit();
+            exit;
+        }
+
+        if ($sub === 'db-status') {
+            handle_admin_db_status();
+            exit;
+        }
+
+        if ($sub === 'migrate-mysql') {
+            handle_admin_migrate_mysql();
             exit;
         }
 

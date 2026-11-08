@@ -1,11 +1,53 @@
 <?php
 // ==========================================
-// MÓDULO: VOTANTES (Voters)
+// MÓDULO: VOTANTES (Voters) - MySQL & SQLite
 // ==========================================
+
+function detect_voter_nivel($voter) {
+    if (!$voter) return 'General';
+
+    // 1. Si la sede es Jerusalén, la elección es general unificada
+    $sede = normalize_sede_slug($voter['sede'] ?? '');
+    if ($sede === 'jerusalen') {
+        return 'General';
+    }
+
+    // 2. Si tiene nivel explícito guardado
+    if (!empty($voter['nivel'])) {
+        $n = trim($voter['nivel']);
+        if (stripos($n, 'sec') !== false) return 'Secundaria';
+        if (stripos($n, 'prim') !== false) return 'Primaria';
+        if (stripos($n, 'gen') !== false) return 'General';
+        return $n;
+    }
+
+    // 3. En Sede Central: determinar por grado y NGS
+    $text = mb_strtoupper(($voter['grado'] ?? '') . ' ' . ($voter['ngs'] ?? ''), 'UTF-8');
+    if (strpos($text, 'SEC') !== false || strpos($text, 'AÑO') !== false || strpos($text, 'SECUNDARIA') !== false) {
+        return 'Secundaria';
+    }
+
+    // Por defecto en Central (1° a 6° grado)
+    return 'Primaria';
+}
 
 function getVoterByCodigo($codigo, $sede = null) {
     $c = trim((string)$codigo);
     $targetSede = $sede ? normalize_sede_slug($sede) : get_active_sede();
+    $isMysql = (DB_DRIVER === 'mysql');
+    $separateDbs = defined('DB_SEPARATE_DBS') && DB_SEPARATE_DBS;
+
+    if ($isMysql && !$separateDbs) {
+        $sedePattern = ($targetSede === 'jerusalen') ? '%Jerusal%' : '%Central%';
+        $stmt = db_query('SELECT * FROM voters WHERE (codigo = :c1 OR dni = :c2 OR codigo_original = :c3) AND (sede LIKE :sede OR sede IS NULL) LIMIT 1', [
+            'c1' => $c,
+            'c2' => $c,
+            'c3' => $c,
+            'sede' => $sedePattern
+        ]);
+        return $stmt->fetch();
+    }
+
     $stmt = db_query('SELECT * FROM voters WHERE codigo = :c1 OR dni = :c2 OR codigo_original = :c3 LIMIT 1', [
         'c1' => $c,
         'c2' => $c,
@@ -17,6 +59,19 @@ function getVoterByCodigo($codigo, $sede = null) {
 function voterExists($codigo, $sede = null) {
     $c = trim((string)$codigo);
     $targetSede = $sede ? normalize_sede_slug($sede) : get_active_sede();
+    $isMysql = (DB_DRIVER === 'mysql');
+    $separateDbs = defined('DB_SEPARATE_DBS') && DB_SEPARATE_DBS;
+
+    if ($isMysql && !$separateDbs) {
+        $sedePattern = ($targetSede === 'jerusalen') ? '%Jerusal%' : '%Central%';
+        $stmt = db_query('SELECT 1 FROM voters WHERE (codigo = :c1 OR dni = :c2) AND (sede LIKE :sede OR sede IS NULL) LIMIT 1', [
+            'c1' => $c,
+            'c2' => $c,
+            'sede' => $sedePattern
+        ]);
+        return $stmt->fetchColumn() !== false;
+    }
+
     $stmt = db_query('SELECT 1 FROM voters WHERE codigo = :c1 OR dni = :c2 LIMIT 1', [
         'c1' => $c,
         'c2' => $c
@@ -27,6 +82,18 @@ function voterExists($codigo, $sede = null) {
 function voterExistsByDni($dni, $sede = null) {
     if (!$dni) return false;
     $targetSede = $sede ? normalize_sede_slug($sede) : get_active_sede();
+    $isMysql = (DB_DRIVER === 'mysql');
+    $separateDbs = defined('DB_SEPARATE_DBS') && DB_SEPARATE_DBS;
+
+    if ($isMysql && !$separateDbs) {
+        $sedePattern = ($targetSede === 'jerusalen') ? '%Jerusal%' : '%Central%';
+        $stmt = db_query('SELECT codigo FROM voters WHERE dni = :dni AND (sede LIKE :sede OR sede IS NULL) LIMIT 1', [
+            'dni' => trim($dni),
+            'sede' => $sedePattern
+        ]);
+        return $stmt->fetch();
+    }
+
     $stmt = db_query('SELECT codigo FROM voters WHERE dni = :dni LIMIT 1', ['dni' => trim($dni)], $targetSede);
     return $stmt->fetch();
 }
@@ -40,6 +107,17 @@ function generarCodigoUnicoVotante($sede = null) {
 
 function setVoterVoted($codigo, $sede = null) {
     $targetSede = $sede ? normalize_sede_slug($sede) : get_active_sede();
+    $isMysql = (DB_DRIVER === 'mysql');
+    $separateDbs = defined('DB_SEPARATE_DBS') && DB_SEPARATE_DBS;
+
+    if ($isMysql && !$separateDbs) {
+        $sedePattern = ($targetSede === 'jerusalen') ? '%Jerusal%' : '%Central%';
+        db_query('UPDATE voters SET ha_votado = 1, fecha_voto = CURRENT_TIMESTAMP WHERE codigo = :codigo AND (sede LIKE :sede OR sede IS NULL)', [
+            'codigo' => $codigo,
+            'sede' => $sedePattern
+        ]);
+        return;
+    }
     db_query('UPDATE voters SET ha_votado = 1, fecha_voto = CURRENT_TIMESTAMP WHERE codigo = :codigo', ['codigo' => $codigo], $targetSede);
 }
 
@@ -50,8 +128,20 @@ function getAllVoters($sede = null, $ngs = null) {
         $where[] = 'ngs = :ngs';
         $params['ngs'] = $ngs;
     }
-    $whereClause = ' WHERE ' . implode(' AND ', $where);
 
+    $isMysql = (DB_DRIVER === 'mysql');
+    $separateDbs = defined('DB_SEPARATE_DBS') && DB_SEPARATE_DBS;
+
+    if ($isMysql && !$separateDbs) {
+        if ($sede && $sede !== 'todos') {
+            $slug = normalize_sede_slug($sede);
+            $where[] = ($slug === 'jerusalen') ? "sede LIKE '%Jerusal%'" : "sede LIKE '%Central%'";
+        }
+        $whereClause = ' WHERE ' . implode(' AND ', $where);
+        return db_query('SELECT * FROM voters' . $whereClause . ' ORDER BY ngs ASC, nombre ASC', $params)->fetchAll();
+    }
+
+    $whereClause = ' WHERE ' . implode(' AND ', $where);
     if ($sede === 'todos' || $sede === null) {
         $vCentral = db_query('SELECT * FROM voters' . $whereClause . ' ORDER BY ngs ASC, nombre ASC', $params, 'central')->fetchAll();
         $vJeru = db_query('SELECT * FROM voters' . $whereClause . ' ORDER BY ngs ASC, nombre ASC', $params, 'jerusalen')->fetchAll();
@@ -63,6 +153,17 @@ function getAllVoters($sede = null, $ngs = null) {
 }
 
 function getDistinctSedesAndNGS() {
+    $isMysql = (DB_DRIVER === 'mysql');
+    $separateDbs = defined('DB_SEPARATE_DBS') && DB_SEPARATE_DBS;
+
+    if ($isMysql && !$separateDbs) {
+        $ngs = db_query("SELECT DISTINCT ngs FROM voters WHERE ngs IS NOT NULL AND ngs != '' AND ngs NOT LIKE '%A_OS%' AND ngs NOT LIKE '%INICIAL%' ORDER BY ngs ASC")->fetchAll(PDO::FETCH_COLUMN);
+        return [
+            'sedes' => ['Sede Central', 'Sede Jerusalén'],
+            'ngs' => array_values(array_unique($ngs))
+        ];
+    }
+
     $ngsCentral = db_query("SELECT DISTINCT ngs FROM voters WHERE ngs IS NOT NULL AND ngs != '' AND ngs NOT LIKE '%A_OS%' AND ngs NOT LIKE '%INICIAL%' ORDER BY ngs ASC", [], 'central')->fetchAll(PDO::FETCH_COLUMN);
     $ngsJeru = db_query("SELECT DISTINCT ngs FROM voters WHERE ngs IS NOT NULL AND ngs != '' AND ngs NOT LIKE '%A_OS%' AND ngs NOT LIKE '%INICIAL%' ORDER BY ngs ASC", [], 'jerusalen')->fetchAll(PDO::FETCH_COLUMN);
 
@@ -72,15 +173,30 @@ function getDistinctSedesAndNGS() {
     ];
 }
 
-function _getStudentsFilteredFromDB($sedeSlug, $ngs = null, $estado = 'todos', $search = null) {
+function _getStudentsFilteredFromDB($sedeSlug, $ngs = null, $estado = 'todos', $search = null, $nivel = null) {
     $where = [];
     $params = [];
+
+    $isMysql = (DB_DRIVER === 'mysql');
+    $separateDbs = defined('DB_SEPARATE_DBS') && DB_SEPARATE_DBS;
+
+    if ($isMysql && !$separateDbs && $sedeSlug) {
+        $where[] = ($sedeSlug === 'jerusalen') ? "sede LIKE '%Jerusal%'" : "sede LIKE '%Central%'";
+    }
 
     if ($ngs && $ngs !== 'todos') {
         $where[] = 'ngs = :ngs';
         $params['ngs'] = $ngs;
     } else {
         $where[] = "(ngs NOT LIKE '%A_OS%' AND ngs NOT LIKE '%INICIAL%')";
+    }
+
+    if ($nivel && $nivel !== 'todos') {
+        if (strtolower($nivel) === 'secundaria') {
+            $where[] = "(nivel = 'Secundaria' OR (grado LIKE '%SEC%' OR ngs LIKE '%SEC%' OR ngs LIKE '%A_O%'))";
+        } elseif (strtolower($nivel) === 'primaria') {
+            $where[] = "(nivel = 'Primaria' OR (grado NOT LIKE '%SEC%' AND ngs NOT LIKE '%SEC%' AND ngs NOT LIKE '%A_O%'))";
+        }
     }
 
     if ($estado === 'votaron') {
@@ -103,14 +219,20 @@ function _getStudentsFilteredFromDB($sedeSlug, $ngs = null, $estado = 'todos', $
     return db_query($sql, $params, $sedeSlug)->fetchAll();
 }
 
-function getStudentsFiltered($sede = null, $ngs = null, $estado = 'todos', $search = null) {
-    if (!$sede || $sede === 'todos') {
-        $resCentral = _getStudentsFilteredFromDB('central', $ngs, $estado, $search);
-        $resJeru = _getStudentsFilteredFromDB('jerusalen', $ngs, $estado, $search);
+function getStudentsFiltered($sede = null, $ngs = null, $estado = 'todos', $search = null, $nivel = null) {
+    $isMysql = (DB_DRIVER === 'mysql');
+    $separateDbs = defined('DB_SEPARATE_DBS') && DB_SEPARATE_DBS;
+
+    if ($isMysql && !$separateDbs && (!$sede || $sede === 'todos')) {
+        // En MySQL unificado podemos consultar directamente todos los alumnos en una sola query
+        $alumnos = _getStudentsFilteredFromDB(null, $ngs, $estado, $search, $nivel);
+    } elseif (!$sede || $sede === 'todos') {
+        $resCentral = _getStudentsFilteredFromDB('central', $ngs, $estado, $search, $nivel);
+        $resJeru = _getStudentsFilteredFromDB('jerusalen', $ngs, $estado, $search, $nivel);
         $alumnos = array_merge($resCentral, $resJeru);
     } else {
         $slug = normalize_sede_slug($sede);
-        $alumnos = _getStudentsFilteredFromDB($slug, $ngs, $estado, $search);
+        $alumnos = _getStudentsFilteredFromDB($slug, $ngs, $estado, $search, $nivel);
     }
 
     // Contadores para el filtro
@@ -134,13 +256,12 @@ function getStudentsFiltered($sede = null, $ngs = null, $estado = 'todos', $sear
 }
 
 /**
- * Importación masiva por lote con aislamiento total por sede en su propia base de datos
+ * Importación masiva por lote con aislamiento total por sede
  */
 function importarLoteAlumnos($listaAlumnos, $sedeDefault = 'Sede Central') {
     $targetSedeName = normalize_sede_name($sedeDefault);
     $slug = normalize_sede_slug($targetSedeName);
     
-    // Activar conexión de la base de datos de esa sede
     $db = get_db_connection($slug);
     $db->beginTransaction();
 
@@ -159,10 +280,10 @@ function importarLoteAlumnos($listaAlumnos, $sedeDefault = 'Sede Central') {
             $grado = isset($al['grado']) ? trim((string)$al['grado']) : null;
             $seccion = isset($al['seccion']) ? trim((string)$al['seccion']) : null;
             $ngs = isset($al['ngs']) ? strtoupper(trim((string)$al['ngs'])) : null;
-            $sede = $targetSedeName; // La sede es fijada estrictamente por el botón seleccionado
+            $sede = $targetSedeName;
             $email = isset($al['email']) ? trim((string)$al['email']) : null;
 
-            // Extraer grado y sección si no vienen explícitos pero ngs tiene formato (ej: "1° A - PRIMARIA" o "CUARTO GRADO")
+            // Extraer grado y sección si no vienen explícitos pero ngs tiene formato
             if ((!$grado || !$seccion) && !empty($ngs)) {
                 $ngsUpper = mb_strtoupper($ngs, 'UTF-8');
                 if (!$grado) {
@@ -193,27 +314,39 @@ function importarLoteAlumnos($listaAlumnos, $sedeDefault = 'Sede Central') {
                 $nombreCompleto = $nombres ?: ($al['nombre'] ?? 'Sin Nombre');
             }
 
-            // El código de votación es directamente el DNI del alumno.
+            // Detectar nivel escolar (Primaria / Secundaria / General)
+            $nivel = isset($al['nivel']) ? trim((string)$al['nivel']) : null;
+            if (!$nivel) {
+                if ($slug === 'jerusalen') {
+                    $nivel = 'General';
+                } else {
+                    $txt = mb_strtoupper("{$grado} {$ngs}", 'UTF-8');
+                    if (strpos($txt, 'SEC') !== false || strpos($txt, 'AÑO') !== false || strpos($txt, 'SECUNDARIA') !== false) {
+                        $nivel = 'Secundaria';
+                    } else {
+                        $nivel = 'Primaria';
+                    }
+                }
+            }
+
+            // El código de votación es el DNI o el código asignado
             $codigoVoto = !empty($dni) ? $dni : (!empty($codOriginal) ? $codOriginal : generarCodigoUnicoVotante($slug));
 
-            // Verificar si ya existe en esta base de datos
             $existente = null;
             if ($dni) {
                 $existente = voterExistsByDni($dni, $slug);
             }
             if (!$existente && $codOriginal) {
-                $stmt = db_query('SELECT codigo FROM voters WHERE codigo_original = :cod LIMIT 1', ['cod' => $codOriginal], $slug);
-                $existente = $stmt->fetch();
+                $existente = getVoterByCodigo($codOriginal, $slug);
             }
             if (!$existente && $codigoVoto) {
-                $stmt = db_query('SELECT codigo FROM voters WHERE codigo = :cod LIMIT 1', ['cod' => $codigoVoto], $slug);
-                $existente = $stmt->fetch();
+                $existente = getVoterByCodigo($codigoVoto, $slug);
             }
 
             if ($existente) {
                 $codigoActual = $existente['codigo'];
                 if ($codigoActual !== $codigoVoto) {
-                    $ocupado = db_query('SELECT 1 FROM voters WHERE codigo = :c LIMIT 1', ['c' => $codigoVoto], $slug)->fetchColumn();
+                    $ocupado = voterExists($codigoVoto, $slug);
                     if (!$ocupado) {
                         db_query('UPDATE voters SET codigo = :nuevo WHERE codigo = :antiguo', [
                             'nuevo' => $codigoVoto,
@@ -240,6 +373,7 @@ function importarLoteAlumnos($listaAlumnos, $sedeDefault = 'Sede Central') {
                         grado = :grado,
                         seccion = :seccion,
                         ngs = :ngs,
+                        nivel = :nivel,
                         sede = :sede,
                         email = :email
                     WHERE codigo = :codigo',
@@ -254,6 +388,7 @@ function importarLoteAlumnos($listaAlumnos, $sedeDefault = 'Sede Central') {
                         'grado' => $grado,
                         'seccion' => $seccion,
                         'ngs' => $ngs,
+                        'nivel' => $nivel,
                         'sede' => $sede,
                         'email' => $email,
                         'codigo' => $codigoVoto
@@ -264,9 +399,9 @@ function importarLoteAlumnos($listaAlumnos, $sedeDefault = 'Sede Central') {
             } else {
                 db_query('
                     INSERT INTO voters (
-                        codigo, codigo_original, dni, nombre, ap_paterno, ap_materno, nombres, sexo, grado, seccion, ngs, sede, email, ha_votado
+                        codigo, codigo_original, dni, nombre, ap_paterno, ap_materno, nombres, sexo, grado, seccion, ngs, nivel, sede, email, ha_votado
                     ) VALUES (
-                        :codigo, :cod_orig, :dni, :nombre, :ap_pat, :ap_mat, :nombres, :sexo, :grado, :seccion, :ngs, :sede, :email, 0
+                        :codigo, :cod_orig, :dni, :nombre, :ap_pat, :ap_mat, :nombres, :sexo, :grado, :seccion, :ngs, :nivel, :sede, :email, 0
                     )',
                     [
                         'codigo' => $codigoVoto,
@@ -280,6 +415,7 @@ function importarLoteAlumnos($listaAlumnos, $sedeDefault = 'Sede Central') {
                         'grado' => $grado,
                         'seccion' => $seccion,
                         'ngs' => $ngs,
+                        'nivel' => $nivel,
                         'sede' => $sede,
                         'email' => $email
                     ],
@@ -296,6 +432,7 @@ function importarLoteAlumnos($listaAlumnos, $sedeDefault = 'Sede Central') {
                 'grado' => $grado,
                 'seccion' => $seccion,
                 'ngs' => $ngs,
+                'nivel' => $nivel,
                 'sede' => $sede
             ];
         }

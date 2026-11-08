@@ -21,6 +21,7 @@ services:
       context: ./frontend
     container_name: cata_frontend_principal
     ports:
+      - "80:80"
       - "8001:80"
     depends_on:
       - backend-principal

@@ -5,6 +5,7 @@ import Voting from './components/Voting';
 import Admin from './components/Admin';
 import Portal from './components/Portal';
 import ProjectorView from './components/ProjectorView';
+import CandidateSelfRegistration from './components/CandidateSelfRegistration';
 
 // Componente que escucha si se accede por ruta secreta /panel-Docente y camufla la URL
 const SecretRouteCloaker = ({ setIsDocenteMode }) => {
@@ -129,6 +130,12 @@ const AppContent = ({ voter, setVoter, isDocenteMode, setIsDocenteMode }) => {
         path="/voto" 
         element={voter ? <Voting voter={voter} setVoter={setVoter} /> : <Navigate to="/" replace />} 
       />
+
+      {/* Auto-registro de listas y candidatos por enlace seguro */}
+      <Route path="/postular" element={<CandidateSelfRegistration />} />
+      <Route path="/postular/:token" element={<CandidateSelfRegistration />} />
+      <Route path="/inscripcion" element={<CandidateSelfRegistration />} />
+      <Route path="/inscripcion/:token" element={<CandidateSelfRegistration />} />
 
       {/* Trampas para curiosos */}
       <Route path="/admin" element={<Navigate to="/" replace />} />

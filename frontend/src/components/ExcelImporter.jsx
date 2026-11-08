@@ -160,13 +160,38 @@ const ExcelImporter = ({ onImportFinished }) => {
         const sheet = workbook.Sheets[firstSheetName];
         const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
 
-        // Detectar la fila de encabezado buscando palabras clave
+        // Detectar la fila de encabezado buscando la fila con mayor puntuación de columnas reales
         let headerRowIndex = -1;
-        for (let i = 0; i < Math.min(rows.length, 15); i++) {
-          const rowStr = rows[i].map(c => String(c).toLowerCase().trim()).join(' ');
-          if (rowStr.includes('código') || rowStr.includes('codigo') || rowStr.includes('paterno') || rowStr.includes('dni') || rowStr.includes('estudiante')) {
+        let bestScore = 0;
+
+        for (let i = 0; i < Math.min(rows.length, 25); i++) {
+          const row = rows[i];
+          if (!row || row.length === 0) continue;
+          let score = 0;
+          for (const cell of row) {
+            const cStr = String(cell).toLowerCase().trim();
+            if (cStr.includes('paterno') || cStr.includes('materno')) score += 3;
+            if (cStr.includes('apellidos y nombres') || cStr.includes('nombres y apellidos')) score += 4;
+            if (cStr === 'nombres' || cStr === 'nombre') score += 2;
+            if (cStr.includes('dni') || cStr.includes('doc. ident') || cStr.includes('documento')) score += 3;
+            if (cStr === 'código' || cStr === 'codigo' || cStr.includes('cod. est') || cStr.includes('cód. est')) score += 3;
+            if (cStr.includes('sexo') || cStr === 'género' || cStr === 'genero') score += 2;
+            if (cStr.includes('grado') || cStr.includes('sección') || cStr.includes('seccion')) score += 2;
+          }
+          if (score > bestScore && score >= 3) {
+            bestScore = score;
             headerRowIndex = i;
-            break;
+          }
+        }
+
+        if (headerRowIndex === -1) {
+          // Búsqueda simple de fallback
+          for (let i = 0; i < Math.min(rows.length, 15); i++) {
+            const rowStr = rows[i].map(c => String(c).toLowerCase().trim()).join(' ');
+            if ((rowStr.includes('paterno') || rowStr.includes('apellidos')) && (rowStr.includes('dni') || rowStr.includes('nombres') || rowStr.includes('código'))) {
+              headerRowIndex = i;
+              break;
+            }
           }
         }
 
@@ -176,15 +201,34 @@ const ExcelImporter = ({ onImportFinished }) => {
 
         const headers = rows[headerRowIndex].map(h => String(h).toLowerCase().trim());
 
-        // Mapear índices de columnas de forma flexible
+        // Mapear índices de columnas de forma inteligente y segura
         const colMap = {
-          codigo: headers.findIndex(h => h === 'código' || h === 'codigo' || h === 'cod' || h.includes('cód. estudiante') || h.includes('cod. estudiante')),
+          codigo: headers.findIndex(h => 
+            h === 'código' || h === 'codigo' || h === 'cod' || 
+            h.includes('cód. estudiante') || h.includes('cod. estudiante') || 
+            h.includes('código estudiante') || h.includes('codigo estudiante')
+          ),
           paterno: headers.findIndex(h => h.includes('paterno')),
           materno: headers.findIndex(h => h.includes('materno')),
-          nombres: headers.findIndex(h => h === 'nombres' || h === 'nombre'),
-          nombreCompleto: headers.findIndex(h => h.includes('apellidos y nombres') || h.includes('nombre completo') || h.includes('estudiante') || h.includes('alumno')),
+          nombres: headers.findIndex(h => 
+            h === 'nombres' || h === 'nombre' || 
+            (h.includes('nombre') && !h.includes('completo') && !h.includes('apellido') && !h.includes('estudiante'))
+          ),
+          nombreCompleto: headers.findIndex(h => {
+            // Descartar explícitamente columnas de orden / correlativo / item / DNI
+            if (h.includes('n°') || h.includes('nro') || h.includes('orden') || h.includes('item') || h === '#') return false;
+            if (h.includes('cód') || h.includes('cod') || h.includes('dni')) return false;
+            return (
+              h.includes('apellidos y nombres') || 
+              h.includes('nombres y apellidos') || 
+              h.includes('nombre completo') || 
+              h.includes('apellidos y nombre') ||
+              h === 'estudiante' || 
+              h === 'alumno'
+            );
+          }),
           sexo: headers.findIndex(h => h.includes('sex') || h === 'genero' || h === 'género'),
-          dni: headers.findIndex(h => h.includes('doc') || h.includes('dni') || h.includes('ident')),
+          dni: headers.findIndex(h => (h.includes('dni') || h.includes('doc') || h.includes('ident')) && !h.includes('tipo')),
           nivel: headers.findIndex(h => h === 'nivel' || h.includes('modalidad') || h.includes('nivel')),
           grado: headers.findIndex(h => h === 'grado' || (h.includes('grado') && !h.includes('secc'))),
           seccion: headers.findIndex(h => h === 'seccion' || h === 'sección' || ((h.includes('secc') || h.includes('aula')) && !h.includes('grado'))),
@@ -228,8 +272,8 @@ const ExcelImporter = ({ onImportFinished }) => {
           }
 
           const codOriginal = colMap.codigo !== -1 ? String(row[colMap.codigo] || '').trim() : '';
-          const apPaterno = colMap.paterno !== -1 ? String(row[colMap.paterno] || '').trim() : '';
-          const apMaterno = colMap.materno !== -1 ? String(row[colMap.materno] || '').trim() : '';
+          let apPaterno = colMap.paterno !== -1 ? String(row[colMap.paterno] || '').trim() : '';
+          let apMaterno = colMap.materno !== -1 ? String(row[colMap.materno] || '').trim() : '';
           let nombres = colMap.nombres !== -1 ? String(row[colMap.nombres] || '').trim() : '';
           const sexo = colMap.sexo !== -1 ? String(row[colMap.sexo] || '').trim().toUpperCase() : '';
           const dni = colMap.dni !== -1 ? String(row[colMap.dni] || '').replace(/[^0-9A-Za-z]/g, '').trim() : '';
@@ -240,7 +284,20 @@ const ExcelImporter = ({ onImportFinished }) => {
             nombreCompleto = String(row[colMap.nombreCompleto]).trim();
           }
 
-          if (!codOriginal && !apPaterno && !nombres && !dni && !nombreCompleto) continue;
+          // Sanitización estricta: Si el nombre completo es solo un número (como "1", "2", "100") o "#", anularlo
+          if (nombreCompleto && (/^\d+$/.test(nombreCompleto) || nombreCompleto === '#')) {
+            nombreCompleto = '';
+          }
+          if (nombres && (/^\d+$/.test(nombres) || nombres === '#')) {
+            nombres = '';
+          }
+          if (apPaterno && (/^\d+$/.test(apPaterno) || apPaterno === '#')) {
+            apPaterno = '';
+          }
+
+          // Solo aceptar la fila si tiene al menos DNI, código de estudiante o un nombre real
+          const tieneIdentidadReal = Boolean(dni || codOriginal || apPaterno || nombres || nombreCompleto);
+          if (!tieneIdentidadReal) continue;
 
           // Clave única para evitar duplicados en el lote
           const identKey = dni || codOriginal;

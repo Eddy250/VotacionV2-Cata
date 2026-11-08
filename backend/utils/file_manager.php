@@ -63,12 +63,14 @@ class FileManager {
 
         // Ensure upload directory exists
         if (!is_dir(UPLOAD_DIR)) {
-            mkdir(UPLOAD_DIR, 0755, true);
+            @mkdir(UPLOAD_DIR, 0777, true);
         }
+        @chmod(UPLOAD_DIR, 0777);
 
         // Move uploaded file
         $destination = UPLOAD_DIR . '/' . $filename;
         if (move_uploaded_file($file['tmp_name'], $destination)) {
+            @chmod($destination, 0666);
             // Return web-accessible path
             return "img/" . $filename;
         }

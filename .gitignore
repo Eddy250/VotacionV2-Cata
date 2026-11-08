@@ -11,6 +11,8 @@ dist/
 
 # Respaldos y scripts temporales
 find_pass_temp.php
+scratch/
+check_voters.php
 
 # Archivos de sistema
 .DS_Store

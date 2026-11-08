@@ -13,11 +13,13 @@ const BLUE_LIGHT = '#EEF4FF';
 
 const OrgChart = ({ candidato }) => {
   const members = [
-    { role: 'Alcalde(sa)', name: candidato.alcalde, foto: candidato.alcalde_foto, primary: true },
-    { role: 'Teniente Alcalde(sa)', name: candidato.teniente, foto: candidato.teniente_foto },
-    { role: 'Reg. Educación, Cultura y Deporte', name: candidato.regidor_educacion, foto: candidato.regidor_educacion_foto },
-    { role: 'Reg. Salud y Medio Ambiente', name: candidato.regidor_salud, foto: candidato.regidor_salud_foto },
-    { role: 'Reg. Derechos del Niño', name: candidato.regidor_derechos, foto: candidato.regidor_derechos_foto },
+    { role: 'Alcalde ó Alcaldesa', name: candidato.alcalde, grado: candidato.alcalde_grado, foto: candidato.alcalde_foto, primary: true },
+    { role: 'Teniente Alcalde', name: candidato.teniente, grado: candidato.teniente_grado, foto: candidato.teniente_foto },
+    { role: 'Reg. Educación, Cultura y Deporte', name: candidato.regidor_educacion, grado: candidato.regidor_educacion_grado, foto: candidato.regidor_educacion_foto },
+    { role: 'Reg. Salud y Ambiente', name: candidato.regidor_salud, grado: candidato.regidor_salud_grado, foto: candidato.regidor_salud_foto },
+    { role: 'Reg. Emprendimiento y Actividades Productivas', name: candidato.regidor_emprendimiento, grado: candidato.regidor_emprendimiento_grado, foto: candidato.regidor_emprendimiento_foto },
+    { role: 'Reg. Derechos del Niño, Niña y Adolescente', name: candidato.regidor_derechos, grado: candidato.regidor_derechos_grado, foto: candidato.regidor_derechos_foto },
+    { role: 'Reg. Comunicación y Tecnologías', name: candidato.regidor_comunicacion, grado: candidato.regidor_comunicacion_grado, foto: candidato.regidor_comunicacion_foto },
   ].filter(m => m.name);
 
   if (members.length === 0) return null;
@@ -34,8 +36,8 @@ const OrgChart = ({ candidato }) => {
       {/* Alcalde arriba (destacado) */}
       {alcalde && (
         <div className="flex justify-center mb-4">
-          <div className="text-center p-5 bg-white rounded-2xl border-2 shadow-md w-60" style={{ borderColor: BLUE }}>
-            <div className="w-20 h-20 mx-auto rounded-full overflow-hidden border-3 mb-3 bg-slate-100" style={{ borderColor: BLUE }}>
+          <div className="text-center p-5 bg-white rounded-2xl border-2 shadow-md w-64" style={{ borderColor: candidato.color || BLUE }}>
+            <div className="w-20 h-20 mx-auto rounded-full overflow-hidden border-3 mb-3 bg-slate-100" style={{ borderColor: candidato.color || BLUE }}>
               {alcalde.foto ? (
                 <img src={getAssetUrl(alcalde.foto)} className="w-full h-full object-cover" alt="" />
               ) : (
@@ -45,7 +47,10 @@ const OrgChart = ({ candidato }) => {
               )}
             </div>
             <p className="font-black text-sm text-slate-800">{alcalde.name}</p>
-            <span className="inline-block mt-1 px-3 py-0.5 text-xs font-bold rounded-full text-white" style={{ backgroundColor: BLUE }}>
+            {alcalde.grado && (
+              <p className="text-[11px] font-bold text-slate-500 mt-0.5">Grado: {alcalde.grado}</p>
+            )}
+            <span className="inline-block mt-2 px-3 py-0.5 text-xs font-bold rounded-full text-white" style={{ backgroundColor: candidato.color || BLUE }}>
               {alcalde.role}
             </span>
           </div>
@@ -55,7 +60,7 @@ const OrgChart = ({ candidato }) => {
       {/* Línea conectora */}
       {alcalde && rest.length > 0 && (
         <div className="flex justify-center mb-4">
-          <div className="w-0.5 h-6" style={{ backgroundColor: BLUE }}></div>
+          <div className="w-0.5 h-6" style={{ backgroundColor: candidato.color || BLUE }}></div>
         </div>
       )}
 
@@ -76,6 +81,9 @@ const OrgChart = ({ candidato }) => {
                   )}
                 </div>
                 <p className="font-bold text-xs text-slate-800 leading-tight">{m.name}</p>
+                {m.grado && (
+                  <p className="text-[10px] font-bold text-slate-400 mt-0.5">{m.grado}</p>
+                )}
                 <p className="text-[10px] font-semibold mt-1 px-1" style={{ color: BLUE }}>{m.role}</p>
               </div>
             ))}
@@ -125,6 +133,29 @@ const ListaCard = ({ candidato, onOpenPdf }) => {
             <FileCode size={13} /> Plan en PDF
           </div>
         )}
+
+        {/* Badges de Sede y Nivel */}
+        <div className="absolute top-3 left-3 flex flex-wrap items-center gap-1.5">
+          <span className="bg-white/95 backdrop-blur-xs text-slate-800 text-[11px] font-bold px-2.5 py-0.5 rounded-full shadow-sm">
+            {candidato.sede?.includes('Jerusal') ? '⛪ Jerusalén' : '🏛️ Central'}
+          </span>
+          {(!candidato.sede || !candidato.sede.includes('Jerusal')) && (
+            <span className={`text-[11px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full shadow-sm ${
+              candidato.nivel === 'Primaria' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
+              candidato.nivel === 'Secundaria' ? 'bg-indigo-100 text-indigo-900 border border-indigo-300' :
+              'bg-slate-100 text-slate-700 border border-slate-300'
+            }`}>
+              {candidato.nivel || 'General'}
+            </span>
+          )}
+          {candidato.color && (
+            <span
+              className="w-4 h-4 rounded-full border-2 border-white shadow-sm flex-shrink-0"
+              style={{ backgroundColor: candidato.color }}
+              title={`Color representativo: ${candidato.color}`}
+            />
+          )}
+        </div>
       </div>
 
       {/* Info principal */}
@@ -224,13 +255,13 @@ const Portal = () => {
   const [candidatos, setCandidatos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedPdfCandidate, setSelectedPdfCandidate] = useState(null);
-  const [activeSede, setActiveSede] = useState('Sede Principal');
+  const [activeSede, setActiveSede] = useState('Central - Primaria');
   const navigate = useNavigate();
 
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await api.get('/candidatos');
+        const res = await api.get('/candidatos', { params: { sede: 'todos' } });
         setCandidatos(res.data);
       } catch (err) {
         console.error('Error cargando candidatos', err);
@@ -245,10 +276,10 @@ const Portal = () => {
     <div className="min-h-screen w-full relative overflow-x-hidden" style={{ backgroundColor: '#F5F8FF' }}>
       {/* Marca de Agua: Logo Institucional Gigante de Fondo (Casi toda la pantalla) */}
       <div className="fixed inset-0 pointer-events-none flex items-center justify-center z-0 overflow-hidden select-none">
-        <img 
-          src={logoColegioAzul} 
-          alt="" 
-          className="w-[85vw] max-w-[850px] max-h-[85vh] h-auto object-contain opacity-[0.11] filter drop-shadow select-none" 
+        <img
+          src={logoColegioAzul}
+          alt=""
+          className="w-[85vw] max-w-[850px] max-h-[85vh] h-auto object-contain opacity-[0.11] filter drop-shadow select-none"
         />
       </div>
 
@@ -272,30 +303,38 @@ const Portal = () => {
         </p>
       </div>
 
-      {/* Selector Modular de Sede */}
+      {/* Selector Modular de Sede y Nivel */}
       <div className="max-w-4xl mx-auto px-6 mb-7 flex justify-center relative z-10">
-        <div className="bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-2">
+        <div className="bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-center gap-2">
           <button
             type="button"
-            onClick={() => setActiveSede('Sede Principal')}
-            className={`px-6 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
-              activeSede === 'Sede Principal'
+            onClick={() => setActiveSede('Central - Primaria')}
+            className={`px-4 sm:px-5 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${activeSede === 'Central - Primaria'
                 ? 'bg-[#1B3A8C] text-white shadow-md'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-            }`}
+              }`}
           >
-            🏛️ Sede Central (Alcaldía)
+            🎒 Central · Primaria (Alcaldía)
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveSede('Central - Secundaria')}
+            className={`px-4 sm:px-5 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${activeSede === 'Central - Secundaria'
+                ? 'bg-[#1B3A8C] text-white shadow-md'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+          >
+            🎓 Central · Secundaria (Alcaldía)
           </button>
           <button
             type="button"
             onClick={() => setActiveSede('Sede Jerusalén')}
-            className={`px-6 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
-              activeSede === 'Sede Jerusalén'
-                ? 'bg-[#1B3A8C] text-white shadow-md'
+            className={`px-4 sm:px-5 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${activeSede === 'Sede Jerusalén'
+                ? 'bg-emerald-700 text-white shadow-md'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-            }`}
+              }`}
           >
-            🏛️ Sede Jerusalén (Alcaldía)
+            ⛪ Sede Jerusalén (Alcaldía)
           </button>
         </div>
       </div>
@@ -310,8 +349,13 @@ const Portal = () => {
           (() => {
             const sedeCandidatos = candidatos.filter(c => {
               if (c.nombre?.toLowerCase().includes('blanco')) return false;
-              if (activeSede === 'Sede Principal' || activeSede === 'Sede Central') {
-                return !c.sede || c.sede.includes('Principal') || c.sede.includes('Central');
+              if (activeSede === 'Central - Primaria') {
+                const isCentral = !c.sede || c.sede.includes('Principal') || c.sede.includes('Central');
+                return isCentral && (c.nivel === 'Primaria' || c.nivel === 'General' || !c.nivel);
+              }
+              if (activeSede === 'Central - Secundaria') {
+                const isCentral = !c.sede || c.sede.includes('Principal') || c.sede.includes('Central');
+                return isCentral && (c.nivel === 'Secundaria' || c.nivel === 'General' || !c.nivel);
               }
               return c.sede && c.sede.includes('Jerusal');
             });

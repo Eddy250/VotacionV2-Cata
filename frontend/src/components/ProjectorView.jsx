@@ -194,6 +194,7 @@ const ProjectorView = ({ sede = 'todos', ngs = 'todos', onClose }) => {
     return sede === 'todos' ? 'todos' : 'central';
   });
 
+  const [selectedNivel, setSelectedNivel] = useState('Primaria');
   const [stats, setStats] = useState(null);
   const [now, setNow] = useState(new Date());
   const rootRef = useRef(null);
@@ -202,6 +203,7 @@ const ProjectorView = ({ sede = 'todos', ngs = 'todos', onClose }) => {
     try {
       const params = new URLSearchParams();
       if (selectedSede !== 'todos') params.append('sede', selectedSede);
+      if (selectedSede === 'central' && selectedNivel !== 'todos') params.append('nivel', selectedNivel);
       if (ngs !== 'todos') params.append('ngs', ngs);
       const res = await api.get(`/admin/stats?${params.toString()}`);
       setStats(res.data);
@@ -214,7 +216,7 @@ const ProjectorView = ({ sede = 'todos', ngs = 'todos', onClose }) => {
     load();
     const dataTimer = setInterval(load, 2000);
     return () => clearInterval(dataTimer);
-  }, [selectedSede, ngs]);
+  }, [selectedSede, selectedNivel, ngs]);
 
   useEffect(() => {
     const clockTimer = setInterval(() => setNow(new Date()), 1000);
@@ -254,9 +256,11 @@ const ProjectorView = ({ sede = 'todos', ngs = 'todos', onClose }) => {
       : 'Colegio Adventista Tupac Amaru- GENERAL';
 
   const sedeSubtitle = isJeru
-    ? 'Sede Jerusalén'
+    ? 'Sede Jerusalén · Elección General'
     : isCentral
-      ? 'Sede Central'
+      ? (selectedNivel === 'Primaria' ? 'Sede Central · Municipio Escolar Nivel Primaria' :
+         selectedNivel === 'Secundaria' ? 'Sede Central · Municipio Escolar Nivel Secundaria' :
+         'Sede Central · Consolidado Ambos Niveles')
       : 'Consolidado General (Ambas Sedes)';
   const resultados = (stats.resultados || []).map((r, i) => ({ ...r, _color: colorFor(r, i) }));
   const listas = resultados.filter(r => !/blanco|nulo/i.test(r.nombre));
@@ -389,7 +393,55 @@ const ProjectorView = ({ sede = 'todos', ngs = 'todos', onClose }) => {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-4">
+          {/* Selector rápido de sede / nivel para el proyector */}
+          <div className="flex items-center gap-1.5 bg-black/25 p-1 rounded-xl border border-white/10 backdrop-blur-xs">
+            <button
+              type="button"
+              onClick={() => { setSelectedSede('central'); setSelectedNivel('Primaria'); }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                selectedSede === 'central' && selectedNivel === 'Primaria'
+                  ? 'bg-amber-400 text-slate-900 shadow-sm'
+                  : 'text-white/80 hover:bg-white/10'
+              }`}
+            >
+              🎒 Central Primaria
+            </button>
+            <button
+              type="button"
+              onClick={() => { setSelectedSede('central'); setSelectedNivel('Secundaria'); }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                selectedSede === 'central' && selectedNivel === 'Secundaria'
+                  ? 'bg-indigo-300 text-slate-900 shadow-sm'
+                  : 'text-white/80 hover:bg-white/10'
+              }`}
+            >
+              🎓 Central Secundaria
+            </button>
+            <button
+              type="button"
+              onClick={() => { setSelectedSede('jerusalen'); setSelectedNivel('todos'); }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                selectedSede === 'jerusalen'
+                  ? 'bg-emerald-400 text-slate-900 shadow-sm'
+                  : 'text-white/80 hover:bg-white/10'
+              }`}
+            >
+              ⛪ Jerusalén
+            </button>
+            <button
+              type="button"
+              onClick={() => { setSelectedSede('todos'); setSelectedNivel('todos'); }}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                selectedSede === 'todos'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-white/60 hover:bg-white/10'
+              }`}
+            >
+              🌐 Consolidado
+            </button>
+          </div>
+
           <div className="text-right">
             <p className="text-3xl font-black tabular-nums tracking-tight">{hora}</p>
             <p className="text-xs text-blue-200 font-semibold capitalize">{fecha}</p>

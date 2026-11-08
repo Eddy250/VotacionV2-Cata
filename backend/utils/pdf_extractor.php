@@ -287,8 +287,12 @@ class PdfExtractor {
                         $rol = 'regidor_educacion';
                     } elseif (preg_match('/(?:SALUD|AMBIENTE|ECOLOGIA)/u', $contextoInmediato)) {
                         $rol = 'regidor_salud';
+                    } elseif (preg_match('/(?:EMPRENDIMIENTO|ACTIVIDADES?\s*PRODUCTIVAS?)/u', $contextoInmediato)) {
+                        $rol = 'regidor_emprendimiento';
                     } elseif (preg_match('/(?:DERECHO|NINO|NINA|ADOLESC)/u', $contextoInmediato)) {
                         $rol = 'regidor_derechos';
+                    } elseif (preg_match('/(?:COMUNICACION|TECNOLOG|INFORMACION|TICS?)/u', $contextoInmediato)) {
+                        $rol = 'regidor_comunicacion';
                     }
 
                     if (!isset($detectadosDirectos[$rol])) {

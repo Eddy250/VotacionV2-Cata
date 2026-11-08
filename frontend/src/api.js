@@ -5,15 +5,7 @@ export const getBaseURL = () => {
   if (import.meta.env.VITE_API_BASE_URL) {
     return import.meta.env.VITE_API_BASE_URL.replace(/\/$/, '');
   }
-  const origin = window.location.origin;
-  if (!origin || origin === 'null' || origin.startsWith('file:') || origin === 'http://localhost:5173') {
-    return '/api';
-  }
-  let pathname = window.location.pathname;
-  if (!pathname.endsWith('/')) {
-    pathname = pathname.substring(0, pathname.lastIndexOf('/') + 1);
-  }
-  return `${origin}${pathname}api`.replace(/([^:]\/)\/+/g, '$1');
+  return '/api';
 };
 
 export const getAssetUrl = (path) => {
@@ -21,9 +13,10 @@ export const getAssetUrl = (path) => {
   if (path.startsWith('http://') || path.startsWith('https://')) return path;
   let clean = path.replace(/^\/+/, '');
   clean = clean.replace(/^(static\/)+/i, 'static/');
-  const apiBase = getBaseURL();
-  const rootBase = apiBase.replace(/\/api$/, '');
-  return `${rootBase}/${clean}`.replace(/([^:]\/)\/+/g, '$1');
+  if (!clean.toLowerCase().startsWith('static/')) {
+    clean = `static/${clean}`;
+  }
+  return `/${clean}`;
 };
 
 export const getCabinaSede = () => {
@@ -45,6 +38,11 @@ const api = axios.create({
 
 // Interceptor para inyectar token de docente y sede activa de la cabina
 api.interceptors.request.use((config) => {
+  // Si se envían archivos o formularios FormData, no forzar application/json para que el navegador cree el boundary multipart correcto
+  if (config.data instanceof FormData) {
+    delete config.headers['Content-Type'];
+  }
+
   const token = localStorage.getItem('cata_admin_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;

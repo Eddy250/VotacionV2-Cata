@@ -25,13 +25,15 @@ const StatCard = ({ title, value, icon: Icon, colorHex, subtitle }) => (
 const DashboardStats = ({ handleLogout }) => {
   const [stats, setStats] = useState(null);
   const [filterSede, setFilterSede] = useState('todos');
+  const [filterNivel, setFilterNivel] = useState('todos');
   const [filterNgs, setFilterNgs] = useState('todos');
   const [projectorMode, setProjectorMode] = useState(false);
 
-  const loadData = async (sede = filterSede, ngs = filterNgs) => {
+  const loadData = async (sede = filterSede, ngs = filterNgs, nivel = filterNivel) => {
     try {
       const params = new URLSearchParams();
       if (sede !== 'todos') params.append('sede', sede);
+      if (sede.toLowerCase().includes('central') && nivel !== 'todos') params.append('nivel', nivel);
       if (ngs !== 'todos') params.append('ngs', ngs);
 
       const resStats = await api.get(`/admin/stats?${params.toString()}`);
@@ -45,12 +47,12 @@ const DashboardStats = ({ handleLogout }) => {
   };
 
   useEffect(() => {
-    loadData(filterSede, filterNgs);
+    loadData(filterSede, filterNgs, filterNivel);
     const intervalId = setInterval(() => {
-      loadData(filterSede, filterNgs);
+      loadData(filterSede, filterNgs, filterNivel);
     }, 1500); // Actualización instantánea cada 1.5 segundos (tiempo real)
     return () => clearInterval(intervalId);
-  }, [filterSede, filterNgs]);
+  }, [filterSede, filterNgs, filterNivel]);
 
   if (!stats) return <div className="p-8 text-center text-slate-500 font-bold animate-pulse">Cargando estadísticas en vivo...</div>;
 
@@ -209,6 +211,46 @@ const DashboardStats = ({ handleLogout }) => {
           </div>
         </button>
       </div>
+
+      {/* Sub-selector de Nivel para Sede Central (Primaria vs Secundaria) */}
+      {filterSede === 'Sede Central' && (
+        <div className="flex flex-wrap items-center gap-2 p-2 bg-blue-50/70 border border-blue-200 rounded-2xl w-fit">
+          <span className="text-xs font-black uppercase tracking-wider text-blue-900 px-2">Elección Directa:</span>
+          <button
+            type="button"
+            onClick={() => setFilterNivel('Primaria')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+              filterNivel === 'Primaria'
+                ? 'bg-amber-400 text-slate-900 shadow-xs'
+                : 'bg-white text-slate-700 hover:bg-blue-100 border border-blue-200'
+            }`}
+          >
+            🎒 Alcaldía Primaria
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilterNivel('Secundaria')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+              filterNivel === 'Secundaria'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'bg-white text-slate-700 hover:bg-blue-100 border border-blue-200'
+            }`}
+          >
+            🎓 Alcaldía Secundaria
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilterNivel('todos')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              filterNivel === 'todos'
+                ? 'bg-blue-900 text-white shadow-xs'
+                : 'bg-white text-slate-700 hover:bg-blue-100 border border-blue-200'
+            }`}
+          >
+            🌐 Consolidado Central
+          </button>
+        </div>
+      )}
 
       {/* Desglose Comparativo del Backend Puente (si está en consolidado general) */}
       {filterSede === 'todos' && desglose && (

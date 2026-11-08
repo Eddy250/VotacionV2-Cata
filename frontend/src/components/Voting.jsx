@@ -19,8 +19,10 @@ const Voting = ({ voter, setVoter }) => {
   useEffect(() => {
     const fetchCandidatos = async () => {
       try {
-        const url = voter?.sede ? `/candidatos?sede=${encodeURIComponent(voter.sede)}` : '/candidatos';
-        const response = await api.get(url);
+        const params = {};
+        if (voter?.sede) params.sede = voter.sede;
+        if (voter?.nivel) params.nivel = voter.nivel;
+        const response = await api.get('/candidatos', { params });
         setCandidatos(response.data);
       } catch (err) {
         console.error("Error cargando candidatos", err);
@@ -165,11 +167,19 @@ const Voting = ({ voter, setVoter }) => {
         <div className="flex items-center gap-4">
           <img src={logoColegioAzul} alt="Logo CATA" className="w-14 h-14 object-contain flex-shrink-0 drop-shadow-sm" />
           <div>
-            <h2 className="text-2xl font-extrabold tracking-tight" style={{ color: '#111827' }}>
-              Cédula de Sufragio Digital
+            <h2 className="text-xl sm:text-2xl font-black tracking-tight" style={{ color: '#111827' }}>
+              {(() => {
+                if (voter?.sede && voter.sede.toLowerCase().includes('jeru')) {
+                  return 'Elección Municipio Escolar — Sede Jerusalén';
+                }
+                if (voter?.nivel && voter.nivel.toLowerCase().includes('sec')) {
+                  return 'Elección Municipio Escolar — Nivel Secundaria';
+                }
+                return 'Elección Municipio Escolar — Nivel Primaria';
+              })()}
             </h2>
             <p className="text-xs font-bold tracking-widest uppercase mt-0.5" style={{ color: BLUE }}>
-              Colegio Adventista Túpac Amaru · Elecciones 2026
+              Colegio Adventista Túpac Amaru · Cédula Oficial de Sufragio 2026
             </p>
           </div>
         </div>
@@ -180,6 +190,18 @@ const Voting = ({ voter, setVoter }) => {
           >
             {voter.nombre}
           </span>
+          {voter.nivel && (!voter.sede || !voter.sede.toLowerCase().includes('jeru')) && (
+            <span
+              className="py-1.5 px-3 rounded-full font-black text-xs uppercase tracking-wider shadow-2xs"
+              style={{
+                backgroundColor: voter.nivel === 'Primaria' ? '#FEF3C7' : '#E0E7FF',
+                color: voter.nivel === 'Primaria' ? '#92400E' : '#3730A3',
+                border: `1px solid ${voter.nivel === 'Primaria' ? '#FCD34D' : '#C7D2FE'}`
+              }}
+            >
+              🎒 Nivel {voter.nivel}
+            </span>
+          )}
           {voter.ngs && (
             <span
               className="py-1.5 px-3 rounded-full font-bold text-xs"
@@ -234,7 +256,11 @@ const Voting = ({ voter, setVoter }) => {
               }}
             >
               <div className="h-64 bg-slate-100 relative overflow-hidden border-b" style={{ borderColor: '#E5E7EB' }}>
-                {c.foto ? (
+                {c.logo ? (
+                  <div className="w-full h-full flex items-center justify-center p-6 bg-white">
+                    <img src={getAssetUrl(c.logo)} alt={c.nombre} className="max-w-full max-h-full object-contain transition-transform duration-500 group-hover:scale-105" />
+                  </div>
+                ) : c.foto ? (
                   <img src={getAssetUrl(c.foto)} alt={c.nombre} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: '#EEF4FF' }}>

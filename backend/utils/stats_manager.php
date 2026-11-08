@@ -1,17 +1,28 @@
 <?php
-// utils/stats_manager.php - Backend Puente: Métricas y estadísticas avanzadas CATA 2026
+// utils/stats_manager.php - Backend Puente: Métricas y estadísticas avanzadas CATA 2026 (MySQL & SQLite)
 require_once __DIR__ . '/../models.php';
 
 class StatsManager {
 
     /**
-     * Calcula estadísticas para una sede específica ('central' o 'jerusalen')
+     * Calcula estadísticas para una sede específica ('central' o 'jerusalen'), con soporte de nivel escolar
      */
-    private static function _calc_single_sede_stats($sedeSlug, $ngs = null) {
+    private static function _calc_single_sede_stats($sedeSlug, $ngs = null, $nivel = null) {
         $whereVoters = [];
         $paramsVoters = [];
         $whereVotos = [];
         $paramsVotos = [];
+
+        $isMysql = (DB_DRIVER === 'mysql');
+        $separateDbs = defined('DB_SEPARATE_DBS') && DB_SEPARATE_DBS;
+
+        if ($isMysql && !$separateDbs) {
+            $sedePattern = ($sedeSlug === 'jerusalen') ? '%Jerusal%' : '%Central%';
+            $whereVoters[] = "(sede LIKE :sede_voters OR sede IS NULL)";
+            $paramsVoters['sede_voters'] = $sedePattern;
+            $whereVotos[] = "(sede LIKE :sede_votos OR sede IS NULL)";
+            $paramsVotos['sede_votos'] = $sedePattern;
+        }
 
         if ($ngs && $ngs !== 'todos') {
             $whereVoters[] = 'ngs = :ngs';
@@ -20,6 +31,17 @@ class StatsManager {
             $paramsVotos['ngs'] = $ngs;
         } else {
             $whereVoters[] = "(ngs NOT LIKE '%A_OS%' AND ngs NOT LIKE '%INICIAL%')";
+        }
+
+        // Filtro por Nivel Escolar en Sede Central (Primaria vs Secundaria)
+        if ($sedeSlug === 'central' && $nivel && $nivel !== 'todos') {
+            if (strtolower($nivel) === 'secundaria') {
+                $whereVoters[] = "(nivel = 'Secundaria' OR (grado LIKE '%SEC%' OR ngs LIKE '%SEC%' OR ngs LIKE '%A_O%'))";
+                $whereVotos[] = "(nivel = 'Secundaria' OR candidato_id IN (SELECT id FROM candidatos WHERE LOWER(nivel) = 'secundaria'))";
+            } elseif (strtolower($nivel) === 'primaria') {
+                $whereVoters[] = "(nivel = 'Primaria' OR (grado NOT LIKE '%SEC%' AND ngs NOT LIKE '%SEC%' AND ngs NOT LIKE '%A_O%'))";
+                $whereVotos[] = "(nivel = 'Primaria' OR candidato_id IN (SELECT id FROM candidatos WHERE LOWER(nivel) = 'primaria'))";
+            }
         }
 
         // Total alumnos
@@ -38,8 +60,38 @@ class StatsManager {
 
         $porcentaje_participacion = ($total_alumnos > 0) ? round(($votos_emitidos / $total_alumnos) * 100, 1) : 0.0;
 
-        // Candidatos de esta sede (incluyendo color representativo de lista)
-        $candidatos = db_query('SELECT id, nombre, foto, logo, color, sede FROM candidatos ORDER BY id ASC', [], $sedeSlug)->fetchAll();
+        // Candidatos de esta sede (filtrados por nivel si aplica)
+        if ($isMysql && !$separateDbs) {
+            $sedePattern = ($sedeSlug === 'jerusalen') ? '%Jerusal%' : '%Central%';
+            if ($sedeSlug === 'central' && $nivel && $nivel !== 'todos') {
+                $candidatos = db_query(
+                    "SELECT id, nombre, foto, logo, color, sede, nivel FROM candidatos 
+                     WHERE (sede LIKE :sede_pat OR sede IS NULL)
+                       AND (LOWER(nivel) = LOWER(:nivel) OR LOWER(nivel) = 'general' OR nivel IS NULL OR nivel = '')
+                     ORDER BY id ASC",
+                    ['sede_pat' => $sedePattern, 'nivel' => $nivel]
+                )->fetchAll();
+            } else {
+                $candidatos = db_query(
+                    "SELECT id, nombre, foto, logo, color, sede, nivel FROM candidatos 
+                     WHERE (sede LIKE :sede_pat OR sede IS NULL)
+                     ORDER BY id ASC",
+                    ['sede_pat' => $sedePattern]
+                )->fetchAll();
+            }
+        } else {
+            if ($sedeSlug === 'central' && $nivel && $nivel !== 'todos') {
+                $candidatos = db_query(
+                    "SELECT id, nombre, foto, logo, color, sede, nivel FROM candidatos 
+                     WHERE (LOWER(nivel) = LOWER(:nivel) OR LOWER(nivel) = 'general' OR nivel IS NULL OR nivel = '')
+                     ORDER BY id ASC",
+                    ['nivel' => $nivel],
+                    $sedeSlug
+                )->fetchAll();
+            } else {
+                $candidatos = db_query('SELECT id, nombre, foto, logo, color, sede, nivel FROM candidatos ORDER BY id ASC', [], $sedeSlug)->fetchAll();
+            }
+        }
 
         $resultados = [];
         $chart_labels = [];
@@ -78,6 +130,7 @@ class StatsManager {
                 'logo' => $c['logo'],
                 'color' => $cColor,
                 'sede' => normalize_sede_name($sedeSlug),
+                'nivel' => $c['nivel'] ?? 'General',
                 'votos' => $votos_c,
                 'porcentaje' => $pct_c
             ];
@@ -94,6 +147,7 @@ class StatsManager {
         return [
             'sede' => normalize_sede_name($sedeSlug),
             'sede_slug' => $sedeSlug,
+            'nivel' => $nivel ?: 'todos',
             'total_alumnos' => $total_alumnos,
             'votos_emitidos' => $votos_emitidos,
             'porcentaje_participacion' => $porcentaje_participacion,
@@ -107,24 +161,34 @@ class StatsManager {
     /**
      * Backend Puente: Obtiene estadísticas con filtros opcionales o consolidado general
      */
-    public static function get_dashboard_stats($sede = null, $ngs = null) {
+    public static function get_dashboard_stats($sede = null, $ngs = null, $nivel = null) {
         $listas = getDistinctSedesAndNGS();
 
         if ($sede && $sede !== 'todos') {
             $slug = normalize_sede_slug($sede);
-            $stats = self::_calc_single_sede_stats($slug, $ngs);
+            $stats = self::_calc_single_sede_stats($slug, $ngs, $nivel);
             $stats['filtro_actual'] = [
                 'sede' => normalize_sede_name($slug),
-                'ngs' => $ngs ?: 'todos'
+                'ngs' => $ngs ?: 'todos',
+                'nivel' => $nivel ?: 'todos'
             ];
             $stats['sedes_disponibles'] = $listas['sedes'];
             $stats['ngs_disponibles'] = $listas['ngs'];
+
+            // Si es Central y no se solicitó un nivel específico, calcular desglose de ambos niveles
+            if ($slug === 'central' && (!$nivel || $nivel === 'todos')) {
+                $stats['desglose_niveles'] = [
+                    'primaria' => self::_calc_single_sede_stats('central', $ngs, 'Primaria'),
+                    'secundaria' => self::_calc_single_sede_stats('central', $ngs, 'Secundaria')
+                ];
+            }
+
             return $stats;
         }
 
         // --- CONSOLIDADO GENERAL PUENTE (AMBAS SEDES) ---
-        $centralStats = self::_calc_single_sede_stats('central', $ngs);
-        $jeruStats = self::_calc_single_sede_stats('jerusalen', $ngs);
+        $centralStats = self::_calc_single_sede_stats('central', $ngs, $nivel);
+        $jeruStats = self::_calc_single_sede_stats('jerusalen', $ngs, $nivel);
 
         $total_alumnos = $centralStats['total_alumnos'] + $jeruStats['total_alumnos'];
         $votos_emitidos = $centralStats['votos_emitidos'] + $jeruStats['votos_emitidos'];

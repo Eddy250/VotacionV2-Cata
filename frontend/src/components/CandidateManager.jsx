@@ -4,11 +4,40 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   PlusCircle, Image as ImageIcon, Edit3, Trash2, X, Users, Megaphone,
   FileText, Camera, Wand2, FileCode, CheckCircle2, Search, Eye, Download,
-  ExternalLink, Sparkles, AlertCircle
+  ExternalLink, Sparkles, AlertCircle, Share2, Copy, Check, ShieldCheck, Link as LinkIcon, UserCheck,
+  ChevronDown, GraduationCap
 } from 'lucide-react';
+import { extractDominantColor } from '../utils/colorExtractor';
 
 const BLUE = '#1B3A8C';
 const BLUE_LIGHT = '#EEF4FF';
+
+const CARGOS = [
+  { key: 'alcalde', label: 'Alcalde ó Alcaldesa', desc: 'Líder del Municipio Escolar' },
+  { key: 'teniente', label: 'Teniente Alcalde', desc: 'Segunda autoridad del Municipio' },
+  { key: 'regidor_educacion', label: 'Regidor(a) de Educación, Cultura y Deporte', desc: 'Coordinación académica, deportiva y recreativa' },
+  { key: 'regidor_salud', label: 'Regidor(a) de Salud y Ambiente', desc: 'Higiene, áreas verdes y primeros auxilios' },
+  { key: 'regidor_emprendimiento', label: 'Regidor(a) de Emprendimiento y Actividades Productivas', desc: 'Proyectos estudiantiles y actividades pro-fondos' },
+  { key: 'regidor_derechos', label: 'Regidor(a) de Derechos del Niño, Niña y Adolescente', desc: 'Convivencia escolar, prevención y tutoría' },
+  { key: 'regidor_comunicacion', label: 'Regidor(a) de Comunicación y Tecnologías', desc: 'Periódico mural, redes escolares y tecnología' },
+];
+
+const GRADOS_SECUNDARIA = [
+  '1° SEC A', '1° SEC B', '1° SEC C',
+  '2° SEC A', '2° SEC B', '2° SEC C',
+  '3° SEC A', '3° SEC B', '3° SEC C',
+  '4° SEC A', '4° SEC B', '4° SEC C',
+  '5° SEC A', '5° SEC B', '5° SEC C',
+];
+
+const GRADOS_PRIMARIA = [
+  '1° PRIM A', '1° PRIM B',
+  '2° PRIM A', '2° PRIM B',
+  '3° PRIM A', '3° PRIM B',
+  '4° PRIM A', '4° PRIM B',
+  '5° PRIM A', '5° PRIM B',
+  '6° PRIM A', '6° PRIM B',
+];
 
 const FileUploadField = ({
   label,
@@ -221,17 +250,42 @@ const CandidateManager = () => {
   // Form state
   const emptyForm = {
     nombre: '', descripcion: '', slogan: '', propuestas: '',
-    alcalde: '', teniente: '', regidor_educacion: '', regidor_salud: '', regidor_derechos: '',
+    alcalde: '', alcalde_grado: '',
+    teniente: '', teniente_grado: '',
+    regidor_educacion: '', regidor_educacion_grado: '',
+    regidor_salud: '', regidor_salud_grado: '',
+    regidor_emprendimiento: '', regidor_emprendimiento_grado: '',
+    regidor_derechos: '', regidor_derechos_grado: '',
+    regidor_comunicacion: '', regidor_comunicacion_grado: '',
     foto: null, logo: null,
     alcalde_foto: null, teniente_foto: null,
-    regidor_educacion_foto: null, regidor_salud_foto: null, regidor_derechos_foto: null,
+    regidor_educacion_foto: null, regidor_salud_foto: null,
+    regidor_emprendimiento_foto: null, regidor_derechos_foto: null, regidor_comunicacion_foto: null,
     propuestas_pdf: null,
     propuestas_pdf_path: '',
-    sede: 'Sede Principal',
-    color: '#1B3A8C'
+    sede: 'Sede Central',
+    nivel: 'Primaria',
+    color: '#1B3A8C',
+    estado_registro: 'aprobado'
   };
 
   const [formData, setFormData] = useState({ ...emptyForm });
+
+  // Modal para revisar ficha completa de postulación
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewCandidate, setReviewCandidate] = useState(null);
+
+  const openReview = (c) => {
+    setReviewCandidate(c);
+    setShowReviewModal(true);
+  };
+
+  // Modal para generar enlace de postulación a candidatos
+  const [showLinkModal, setShowLinkModal] = useState(false);
+  const [linkConfig, setLinkConfig] = useState({ sede: 'Sede Central', nivel: 'Primaria', nombre: '', responsable: '', telefono: '' });
+  const [generatedLink, setGeneratedLink] = useState(null);
+  const [generatingLink, setGeneratingLink] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   // Asistente PDF state
   const [analyzingPdf, setAnalyzingPdf] = useState(false);
@@ -242,6 +296,7 @@ const CandidateManager = () => {
   const [studentSuggestions, setStudentSuggestions] = useState([]);
   const [activeSearchField, setActiveSearchField] = useState(null);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [openGradoAccordion, setOpenGradoAccordion] = useState(null);
   const searchTimeoutRef = useRef(null);
 
   const loadCandidatos = async () => {
@@ -255,10 +310,14 @@ const CandidateManager = () => {
 
   useEffect(() => { loadCandidatos(); }, []);
 
-  const openCreate = (targetSede = 'Sede Central') => {
+  const openCreate = (targetSede = 'Sede Central', targetNivel = 'Primaria') => {
     setEditMode(null);
     setExistingFiles({});
-    setFormData({ ...emptyForm, sede: targetSede });
+    setFormData({
+      ...emptyForm,
+      sede: targetSede,
+      nivel: targetSede.includes('Jerusal') ? 'General' : targetNivel
+    });
     setAnalysisResult(null);
     setAnalysisError(null);
     setActiveTab('general');
@@ -274,22 +333,31 @@ const CandidateManager = () => {
       teniente_foto: c.teniente_foto || null,
       regidor_educacion_foto: c.regidor_educacion_foto || null,
       regidor_salud_foto: c.regidor_salud_foto || null,
+      regidor_emprendimiento_foto: c.regidor_emprendimiento_foto || null,
       regidor_derechos_foto: c.regidor_derechos_foto || null,
+      regidor_comunicacion_foto: c.regidor_comunicacion_foto || null,
       propuestas_pdf: c.propuestas_pdf || null,
     });
     setFormData({
       nombre: c.nombre || '', descripcion: c.descripcion || '',
       slogan: c.slogan || '', propuestas: c.propuestas || '',
-      alcalde: c.alcalde || '', teniente: c.teniente || '',
-      regidor_educacion: c.regidor_educacion || '', regidor_salud: c.regidor_salud || '',
-      regidor_derechos: c.regidor_derechos || '',
+      alcalde: c.alcalde || '', alcalde_grado: c.alcalde_grado || '',
+      teniente: c.teniente || '', teniente_grado: c.teniente_grado || '',
+      regidor_educacion: c.regidor_educacion || '', regidor_educacion_grado: c.regidor_educacion_grado || '',
+      regidor_salud: c.regidor_salud || '', regidor_salud_grado: c.regidor_salud_grado || '',
+      regidor_emprendimiento: c.regidor_emprendimiento || '', regidor_emprendimiento_grado: c.regidor_emprendimiento_grado || '',
+      regidor_derechos: c.regidor_derechos || '', regidor_derechos_grado: c.regidor_derechos_grado || '',
+      regidor_comunicacion: c.regidor_comunicacion || '', regidor_comunicacion_grado: c.regidor_comunicacion_grado || '',
       foto: null, logo: null,
       alcalde_foto: null, teniente_foto: null,
-      regidor_educacion_foto: null, regidor_salud_foto: null, regidor_derechos_foto: null,
+      regidor_educacion_foto: null, regidor_salud_foto: null,
+      regidor_emprendimiento_foto: null, regidor_derechos_foto: null, regidor_comunicacion_foto: null,
       propuestas_pdf: null,
       propuestas_pdf_path: c.propuestas_pdf || '',
-      sede: c.sede || 'Sede Principal',
-      color: c.color || '#1B3A8C'
+      sede: c.sede || 'Sede Central',
+      nivel: c.nivel || 'General',
+      color: c.color || '#1B3A8C',
+      estado_registro: c.estado_registro || 'aprobado'
     });
     setAnalysisResult(null);
     setAnalysisError(null);
@@ -301,7 +369,7 @@ const CandidateManager = () => {
     e.preventDefault();
 
     if (!formData.nombre || formData.nombre.trim() === '') {
-      alert("Por favor, ingresa o verifica el Nombre de la Lista en la pestaña Datos Generales antes de guardar.");
+      alert("Por favor, ingresa o verifica el Nombre del Partido en la pestaña Datos Generales antes de guardar.");
       setActiveTab('general');
       return;
     }
@@ -309,8 +377,17 @@ const CandidateManager = () => {
     const data = new FormData();
 
     // Campos de texto
-    const textFields = ['nombre', 'descripcion', 'slogan', 'propuestas',
-      'alcalde', 'teniente', 'regidor_educacion', 'regidor_salud', 'regidor_derechos', 'sede', 'color'];
+    const textFields = [
+      'nombre', 'descripcion', 'slogan', 'propuestas',
+      'alcalde', 'alcalde_grado',
+      'teniente', 'teniente_grado',
+      'regidor_educacion', 'regidor_educacion_grado',
+      'regidor_salud', 'regidor_salud_grado',
+      'regidor_emprendimiento', 'regidor_emprendimiento_grado',
+      'regidor_derechos', 'regidor_derechos_grado',
+      'regidor_comunicacion', 'regidor_comunicacion_grado',
+      'sede', 'nivel', 'color', 'estado_registro'
+    ];
     textFields.forEach(f => { if (formData[f]) data.append(f, formData[f]); });
 
     // Ruta de PDF si ya fue pre-guardado por el asistente
@@ -320,7 +397,8 @@ const CandidateManager = () => {
 
     // Archivos de imagen
     const fileFields = ['foto', 'logo', 'alcalde_foto', 'teniente_foto',
-      'regidor_educacion_foto', 'regidor_salud_foto', 'regidor_derechos_foto'];
+      'regidor_educacion_foto', 'regidor_salud_foto',
+      'regidor_emprendimiento_foto', 'regidor_derechos_foto', 'regidor_comunicacion_foto'];
     fileFields.forEach(f => { if (formData[f]) data.append(f, formData[f]); });
 
     // Archivo PDF
@@ -353,13 +431,64 @@ const CandidateManager = () => {
     }
   };
 
+  const handleGenerateLink = async () => {
+    setGeneratingLink(true);
+    try {
+      const res = await api.post('/admin/candidatos/generar-token', linkConfig);
+      if (res.data?.success && res.data?.token) {
+        // Garantizar que la URL siempre tenga el host y puerto exactos del navegador (ej. :8001 o :8002)
+        const fullUrl = `${window.location.origin}/postular/${res.data.token}`;
+        setGeneratedLink(fullUrl);
+        loadCandidatos();
+      }
+    } catch (err) {
+      alert("Error al generar enlace: " + (err.response?.data?.error || err.message));
+    } finally {
+      setGeneratingLink(false);
+    }
+  };
+
+  const copyToClipboard = (text) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2500);
+  };
+
+  const handleApproveCandidate = async (candidateId) => {
+    if (!window.confirm("¿Aprobar oficialmente esta lista para la cédula de votación y el portal escolar?")) return;
+    try {
+      await api.post(`/admin/candidatos/${candidateId}/aprobar`, {});
+      await loadCandidatos();
+      if (reviewCandidate && reviewCandidate.id === candidateId) {
+        setReviewCandidate(prev => ({ ...prev, estado_registro: 'aprobado' }));
+      }
+      alert("¡Lista aprobada exitosamente! Ya está activa y visible en el portal y en la cédula.");
+    } catch (err) {
+      alert("Error al aprobar lista: " + (err.response?.data?.error || err.message));
+    }
+  };
+
   // Helper para cambios de texto y archivo
   const setFile = (field, file) => setFormData(prev => ({ ...prev, [field]: file }));
   const setText = (field, val) => setFormData(prev => ({ ...prev, [field]: val }));
 
+  // Subida de logo oficial y extracción automática de color dominante
+  const handleLogoChange = async (file) => {
+    if (!file) return;
+    setFile('logo', file);
+    try {
+      const detected = await extractDominantColor(file);
+      if (detected) {
+        setText('color', detected);
+      }
+    } catch (e) {
+      console.warn("No se pudo extraer color del logo", e);
+    }
+  };
+
   // Autocomplete de Alumnos con el Padrón
   const handleStudentSearch = (field, query) => {
-    setText(field, query);
     setActiveSearchField(field);
 
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
@@ -373,7 +502,7 @@ const CandidateManager = () => {
       try {
         const res = await api.get(`/admin/alumnos?search=${encodeURIComponent(query.trim())}`);
         const list = res.data?.alumnos || [];
-        setStudentSuggestions(list.slice(0, 5));
+        setStudentSuggestions(list.slice(0, 6));
       } catch (err) {
         setStudentSuggestions([]);
       } finally {
@@ -383,72 +512,21 @@ const CandidateManager = () => {
   };
 
   const selectStudent = (field, student) => {
-    setText(field, student.nombre);
+    const grado = student.ngs || (student.grado ? `${student.grado} ${student.seccion || ''}`.trim() : '');
+    const nombre = student.nombre || `${student.ap_paterno || ''} ${student.ap_materno || ''}, ${student.nombres || ''}`.trim();
+    setFormData(prev => ({
+      ...prev,
+      [field]: nombre,
+      [`${field}_grado`]: grado
+    }));
     setStudentSuggestions([]);
     setActiveSearchField(null);
   };
 
-  // Asistente PDF: Subir y analizar localmente
-  const handlePdfUploadAndAnalyze = async (file) => {
-    if (!file) return;
-    setFile('propuestas_pdf', file);
-    setAnalyzingPdf(true);
-    setAnalysisError(null);
-
-    const pdfData = new FormData();
-    pdfData.append('pdf', file);
-
-    try {
-      const res = await api.post('/admin/candidatos/parse-pdf', pdfData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-
-      if (res.data?.success && res.data?.data) {
-        const data = res.data.data;
-        setAnalysisResult(data);
-
-        // Guardar la ruta del PDF si el backend ya lo almacenó
-        if (data.pdf_path) {
-          setText('propuestas_pdf_path', data.pdf_path);
-          setExistingFiles(prev => ({ ...prev, propuestas_pdf: data.pdf_url || data.pdf_path }));
-        }
-      } else {
-        setAnalysisError("No se pudo extraer texto del documento PDF.");
-      }
-    } catch (err) {
-      setAnalysisError(err.response?.data?.error || "Error al procesar el archivo PDF.");
-    } finally {
-      setAnalyzingPdf(false);
-    }
-  };
-
-  // Aplicar sugerencias del asistente
-  const applyAllSuggestions = () => {
-    if (!analysisResult) return;
-    setFormData(prev => {
-      const next = { ...prev };
-      if (analysisResult.nombre) next.nombre = analysisResult.nombre;
-      if (analysisResult.slogan) next.slogan = analysisResult.slogan;
-      if (analysisResult.propuestas) next.propuestas = analysisResult.propuestas;
-
-      // Asignar candidatos detectados
-      (analysisResult.alumnos_detectados || []).forEach(a => {
-        const rol = a.rol_sugerido;
-        if (rol && ['alcalde', 'teniente', 'regidor_educacion', 'regidor_salud', 'regidor_derechos'].includes(rol)) {
-          next[rol] = a.nombre;
-        }
-      });
-      return next;
-    });
-    alert("¡Sugerencias aplicadas! Se cargaron los datos de la lista, junta directiva y propuestas.");
-  };
-
   const tabs = [
-    { id: 'general', label: 'Datos Generales', icon: Megaphone },
-    { id: 'asistente', label: 'Asistente PDF', icon: Wand2, badge: 'Smart' },
-    { id: 'directiva', label: 'Junta Directiva', icon: Users },
-    { id: 'propuestas', label: 'Plan de Trabajo', icon: FileText },
-    { id: 'preview', label: 'Vista Previa', icon: Eye }
+    { id: 'general', label: '1. Datos de la Lista', icon: Megaphone },
+    { id: 'directiva', label: '2. Junta Directiva (7 Integrantes)', icon: Users },
+    { id: 'propuestas', label: '3. Plan de Trabajo / Propuestas', icon: FileText }
   ];
 
   const getCandidatoForEdit = (id) => candidatos.find(c => c.id === id);
@@ -462,49 +540,71 @@ const CandidateManager = () => {
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
           <button
-            onClick={() => openCreate('Sede Central')}
-            className="flex items-center gap-2 text-white font-bold py-2.5 px-4 rounded-2xl shadow-sm hover:shadow transition-all text-xs sm:text-sm cursor-pointer"
-            style={{ backgroundColor: BLUE }}
+            onClick={() => {
+              setGeneratedLink(null);
+              setLinkConfig({ sede: 'Sede Central', nivel: 'Primaria', nombre: '', responsable: '', telefono: '' });
+              setShowLinkModal(true);
+            }}
+            className="flex items-center gap-2 text-slate-950 bg-amber-400 hover:bg-amber-300 font-black py-2.5 px-4 rounded-2xl shadow-sm hover:shadow transition-all text-xs cursor-pointer"
+            title="Generar enlace seguro para que el candidato llene su lista desde su celular"
           >
-            <PlusCircle size={17} /> + Nueva Lista Sede Central
+            <Share2 size={15} /> Generar Enlace de Postulación
           </button>
           <button
-            onClick={() => openCreate('Sede Jerusalén')}
-            className="flex items-center gap-2 text-white font-bold py-2.5 px-4 rounded-2xl shadow-sm hover:shadow transition-all text-xs sm:text-sm bg-emerald-700 hover:bg-emerald-800 cursor-pointer"
+            onClick={() => openCreate('Sede Central', 'Primaria')}
+            className="flex items-center gap-2 text-white font-bold py-2.5 px-3.5 rounded-2xl shadow-sm hover:shadow transition-all text-xs cursor-pointer"
+            style={{ backgroundColor: BLUE }}
           >
-            <PlusCircle size={17} /> + Nueva Lista Sede Jerusalén
+            <PlusCircle size={15} /> + Lista Central (Primaria)
+          </button>
+          <button
+            onClick={() => openCreate('Sede Central', 'Secundaria')}
+            className="flex items-center gap-2 text-white font-bold py-2.5 px-3.5 rounded-2xl shadow-sm hover:shadow transition-all text-xs bg-indigo-700 hover:bg-indigo-800 cursor-pointer"
+          >
+            <PlusCircle size={15} /> + Lista Central (Secundaria)
+          </button>
+          <button
+            onClick={() => openCreate('Sede Jerusalén', 'General')}
+            className="flex items-center gap-2 text-white font-bold py-2.5 px-3.5 rounded-2xl shadow-sm hover:shadow transition-all text-xs bg-emerald-700 hover:bg-emerald-800 cursor-pointer"
+          >
+            <PlusCircle size={15} /> + Lista Jerusalén
           </button>
         </div>
       </div>
 
-      {/* Selector de Módulo / Sede */}
+      {/* Selector de Módulo / Sede y Nivel */}
       <div className="flex flex-wrap items-center gap-2 mb-6 p-1.5 bg-slate-100 rounded-2xl w-fit">
         <button
           type="button"
           onClick={() => setFilterSede('todos')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-            filterSede === 'todos' ? 'bg-white text-blue-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-          }`}
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${filterSede === 'todos' ? 'bg-white text-blue-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+            }`}
         >
-          🌐 Todas las Sedes ({candidatos.length})
+          🌐 Todas ({candidatos.length})
         </button>
         <button
           type="button"
-          onClick={() => setFilterSede('Sede Central')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-            filterSede === 'Sede Central' ? 'bg-white text-blue-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-          }`}
+          onClick={() => setFilterSede('Central - Primaria')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${filterSede === 'Central - Primaria' ? 'bg-white text-blue-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+            }`}
         >
-          🏛️ Sede Central ({candidatos.filter(c => !c.sede || c.sede.includes('Central') || c.sede.includes('Principal')).length})
+          🎒 Central - Primaria ({candidatos.filter(c => (!c.sede || c.sede.includes('Central') || c.sede.includes('Principal')) && (c.nivel === 'Primaria' || c.nivel === 'General' || !c.nivel)).length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setFilterSede('Central - Secundaria')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${filterSede === 'Central - Secundaria' ? 'bg-white text-indigo-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+            }`}
+        >
+          🎓 Central - Secundaria ({candidatos.filter(c => (!c.sede || c.sede.includes('Central') || c.sede.includes('Principal')) && (c.nivel === 'Secundaria' || c.nivel === 'General' || !c.nivel)).length})
         </button>
         <button
           type="button"
           onClick={() => setFilterSede('Sede Jerusalén')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-            filterSede === 'Sede Jerusalén' ? 'bg-white text-emerald-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-          }`}
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${filterSede === 'Sede Jerusalén' ? 'bg-white text-emerald-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+            }`}
         >
-          ⛪ Sede Jerusalén ({candidatos.filter(c => c.sede && c.sede.includes('Jerusal')).length})
+          ⛪ Jerusalén ({candidatos.filter(c => c.sede && c.sede.includes('Jerusal')).length})
         </button>
       </div>
 
@@ -513,73 +613,203 @@ const CandidateManager = () => {
         {candidatos
           .filter(c => {
             if (filterSede === 'todos') return true;
+            if (filterSede === 'Central - Primaria') {
+              const isCentral = !c.sede || c.sede.includes('Central') || c.sede.includes('Principal');
+              return isCentral && (c.nivel === 'Primaria' || c.nivel === 'General' || !c.nivel);
+            }
+            if (filterSede === 'Central - Secundaria') {
+              const isCentral = !c.sede || c.sede.includes('Central') || c.sede.includes('Principal');
+              return isCentral && (c.nivel === 'Secundaria' || c.nivel === 'General' || !c.nivel);
+            }
             if (filterSede === 'Sede Central') return !c.sede || c.sede.includes('Central') || c.sede.includes('Principal');
             if (filterSede === 'Sede Jerusalén') return c.sede && c.sede.includes('Jerusal');
             return true;
           })
           .map(c => (
-          <div key={c.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col group hover:shadow-md transition-shadow">
-            <div className="h-44 bg-slate-100 relative">
-              {c.foto ? (
-                <img src={getAssetUrl(c.foto)} className="w-full h-full object-cover" alt="foto" />
-              ) : c.logo ? (
-                <div className="w-full h-full flex items-center justify-center p-6">
-                  <img src={getAssetUrl(c.logo)} className="max-h-full max-w-full object-contain" alt="logo" />
-                </div>
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={40} /></div>
-              )}
-              {c.slogan && (
-                <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-sm px-3 py-1.5">
-                  <p className="text-white text-xs font-semibold italic truncate">"{c.slogan}"</p>
-                </div>
-              )}
-              {c.propuestas_pdf && (
-                <div className="absolute top-2 right-2 bg-red-600/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow">
-                  <FileCode size={11} /> PDF Adjunto
-                </div>
-              )}
-              <div className="absolute top-2 left-2 flex items-center gap-1.5">
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/90 text-slate-700 shadow-sm">
-                  {c.sede === 'Sede Jerusalén' ? '🏛️ Jerusalén' : '🏛️ Central'}
-                </span>
-                {c.color && (
-                  <span 
-                    className="w-3.5 h-3.5 rounded-full border border-white shadow-sm flex-shrink-0" 
-                    style={{ backgroundColor: c.color }}
-                    title={`Color de la lista: ${c.color}`}
-                  />
+            <div key={c.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col group hover:shadow-md transition-shadow">
+              <div className="h-44 bg-slate-100 relative">
+                {c.logo ? (
+                  <div className="w-full h-full flex items-center justify-center p-5 bg-slate-50">
+                    <img src={getAssetUrl(c.logo)} className="max-h-full max-w-full object-contain" alt="logo" />
+                  </div>
+                ) : c.foto ? (
+                  <img src={getAssetUrl(c.foto)} className="w-full h-full object-cover" alt="foto" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={40} /></div>
                 )}
+                {c.slogan && (
+                  <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-sm px-3 py-1.5">
+                    <p className="text-white text-xs font-semibold italic truncate">"{c.slogan}"</p>
+                  </div>
+                )}
+                {c.propuestas_pdf && (
+                  <div className="absolute top-2 right-2 bg-red-600/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow">
+                    <FileCode size={11} /> PDF Adjunto
+                  </div>
+                )}
+                <div className="absolute top-2 left-2 flex flex-wrap items-center gap-1.5">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/90 text-slate-700 shadow-sm">
+                    {c.sede === 'Sede Jerusalén' ? '⛪ Jerusalén' : '🏛️ Central'}
+                  </span>
+                  {(!c.sede || !c.sede.includes('Jerusal')) && (
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm ${
+                      c.nivel === 'Primaria' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
+                      c.nivel === 'Secundaria' ? 'bg-indigo-100 text-indigo-900 border border-indigo-300' :
+                      'bg-slate-100 text-slate-700 border border-slate-300'
+                    }`}>
+                      {c.nivel || 'General'}
+                    </span>
+                  )}
+                  {c.color && (
+                    <span
+                      className="w-3.5 h-3.5 rounded-full border border-white shadow-sm flex-shrink-0"
+                      style={{ backgroundColor: c.color }}
+                      title={`Color de la lista: ${c.color}`}
+                    />
+                  )}
+                </div>
+              </div>
+              <div className="p-5 flex-grow">
+                <div className="flex items-start justify-between gap-2">
+                  <h4 className="font-bold text-lg text-slate-800 leading-tight">{c.nombre}</h4>
+                  <div>
+                    {c.estado_registro === 'aprobado' || !c.estado_registro ? (
+                      <span className="px-2 py-0.5 rounded-full text-[9.5px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                        Aprobado
+                      </span>
+                    ) : c.estado_registro === 'en_revision' ? (
+                      <span className="px-2 py-0.5 rounded-full text-[9.5px] font-black bg-blue-100 text-blue-800 border border-blue-300 animate-pulse">
+                        En Revisión
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full text-[9.5px] font-black bg-amber-100 text-amber-800 border border-amber-300">
+                        Borrador
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <p className="text-slate-500 text-sm mt-1 line-clamp-2">{c.descripcion}</p>
+
+                {/* Resumen de integrantes y directiva */}
+                {c.responsable_entrega && (
+                  <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-900 bg-amber-50 px-2.5 py-1 rounded-xl border border-amber-200">
+                    <UserCheck size={13} className="text-amber-700 shrink-0" />
+                    <span className="truncate">
+                      Entregado a: <strong>{c.responsable_entrega}</strong>
+                      {c.telefono_responsable && <span className="text-[11px] text-amber-700 ml-1">({c.telefono_responsable})</span>}
+                    </span>
+                  </div>
+                )}
+                {(() => {
+                  const directiva = [
+                    { cargo: 'Alcalde', nombre: c.alcalde, grado: c.alcalde_grado },
+                    { cargo: 'Teniente', nombre: c.teniente, grado: c.teniente_grado },
+                    { cargo: 'Reg. Educación', nombre: c.regidor_educacion, grado: c.regidor_educacion_grado },
+                    { cargo: 'Reg. Salud', nombre: c.regidor_salud, grado: c.regidor_salud_grado },
+                    { cargo: 'Reg. Emprendimiento', nombre: c.regidor_emprendimiento, grado: c.regidor_emprendimiento_grado },
+                    { cargo: 'Reg. Derechos', nombre: c.regidor_derechos, grado: c.regidor_derechos_grado },
+                    { cargo: 'Reg. Comunicación', nombre: c.regidor_comunicacion, grado: c.regidor_comunicacion_grado },
+                  ];
+                  const filledCount = directiva.filter(d => d.nombre).length;
+                  return (
+                    <div className="mt-2.5 space-y-1.5">
+                      <div className="flex items-center justify-between text-xs bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-100">
+                        <span className="flex items-center gap-1 font-bold text-slate-700">
+                          <Users size={13} className="text-blue-600" />
+                          {filledCount > 0 ? `${filledCount} de 7 directivos` : 'Sin directivos'}
+                        </span>
+                        {c.propuestas && (
+                          <span className="flex items-center gap-1 font-bold text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                            <FileText size={11} /> Plan redactado
+                          </span>
+                        )}
+                      </div>
+
+                      {c.alcalde && (
+                        <div className="flex items-center gap-1.5 text-xs text-slate-700 truncate">
+                          <span className="font-black text-blue-900 bg-blue-50 px-1.5 py-0.5 rounded text-[10px]">Alcalde</span>
+                          <span className="font-bold truncate">{c.alcalde}</span>
+                          {c.alcalde_grado && <span className="text-[10px] text-slate-400 font-bold">({c.alcalde_grado})</span>}
+                        </div>
+                      )}
+                      {c.teniente && (
+                        <div className="flex items-center gap-1.5 text-xs text-slate-600 truncate">
+                          <span className="font-black text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded text-[10px]">Teniente</span>
+                          <span className="truncate">{c.teniente}</span>
+                          {c.teniente_grado && <span className="text-[10px] text-slate-400 font-bold">({c.teniente_grado})</span>}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Acciones de Token / WhatsApp */}
+                <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+                  {c.token_registro ? (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(`${window.location.origin}/postular/${c.token_registro}`)}
+                        className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer transition-colors"
+                        title="Copiar enlace para enviar por WhatsApp al candidato"
+                      >
+                        <Copy size={12} /> Copiar Link
+                      </button>
+                      <a
+                        href={(() => {
+                          const fullUrl = `${window.location.origin}/postular/${c.token_registro}`;
+                          const msg = `¡Hola${c.responsable_entrega ? ' ' + c.responsable_entrega : ''}! Te compartimos el enlace oficial para inscribir tu lista electoral (Municipio Escolar CATA 2026):\n\n🔗 ${fullUrl}\n\nPuedes ingresar desde tu celular o computadora. ¡Muchos éxitos!`;
+                          return c.telefono_responsable
+                            ? `https://wa.me/51${c.telefono_responsable.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`
+                            : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+                        })()}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] font-black text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded-lg border border-emerald-200 flex items-center gap-1 transition-colors"
+                        title="Abrir chat de WhatsApp con el mensaje y enlace listos"
+                      >
+                        <Share2 size={11} /> WhatsApp
+                      </a>
+                    </div>
+                  ) : <div />}
+
+                  {c.estado_registro !== 'aprobado' && (
+                    <button
+                      type="button"
+                      onClick={() => handleApproveCandidate(c.id)}
+                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] rounded-lg shadow-xs transition-colors flex items-center gap-1 cursor-pointer"
+                      title="Aprobar para que aparezca en la cédula de votación"
+                    >
+                      <ShieldCheck size={12} /> Aprobar Lista
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="grid grid-cols-3 border-t border-slate-100 divide-x divide-slate-100">
+                <button
+                  onClick={() => openReview(c)}
+                  className="py-3 px-2 text-center font-bold text-blue-700 hover:bg-blue-50 flex items-center justify-center gap-1.5 transition-colors text-xs cursor-pointer"
+                  title="Ver ficha completa de inscripción y directiva"
+                >
+                  <Eye size={14} /> Ficha
+                </button>
+                <button
+                  onClick={() => openEdit(c)}
+                  className="py-3 px-2 text-center font-bold text-slate-500 hover:bg-slate-50 flex items-center justify-center gap-1.5 transition-colors text-xs cursor-pointer"
+                  onMouseEnter={e => e.currentTarget.style.color = BLUE}
+                  onMouseLeave={e => e.currentTarget.style.color = '#64748B'}
+                >
+                  <Edit3 size={14} /> Editar
+                </button>
+                <button
+                  onClick={() => handleDelete(c.id)}
+                  className="py-3 px-2 text-center font-bold text-red-400 hover:text-red-600 hover:bg-red-50 flex items-center justify-center gap-1.5 transition-colors text-xs cursor-pointer"
+                >
+                  <Trash2 size={14} /> Eliminar
+                </button>
               </div>
             </div>
-            <div className="p-5 flex-grow">
-              <h4 className="font-bold text-lg text-slate-800">{c.nombre}</h4>
-              <p className="text-slate-500 text-sm mt-1 line-clamp-2">{c.descripcion}</p>
-              {c.alcalde && (
-                <div className="mt-3 flex items-center gap-2 text-xs">
-                  <span className="px-2 py-0.5 rounded-md font-bold" style={{ backgroundColor: BLUE_LIGHT, color: BLUE }}>Alcalde</span>
-                  <span className="font-semibold text-slate-600 truncate">{c.alcalde}</span>
-                </div>
-              )}
-            </div>
-            <div className="grid grid-cols-2 border-t border-slate-100">
-              <button
-                onClick={() => openEdit(c)}
-                className="py-3 px-4 text-center font-bold text-slate-500 hover:bg-slate-50 flex items-center justify-center gap-2 transition-colors border-r border-slate-100 text-xs"
-                onMouseEnter={e => e.currentTarget.style.color = BLUE}
-                onMouseLeave={e => e.currentTarget.style.color = '#64748B'}
-              >
-                <Edit3 size={15} /> Editar
-              </button>
-              <button
-                onClick={() => handleDelete(c.id)}
-                className="py-3 px-4 text-center font-bold text-red-400 hover:text-red-600 hover:bg-red-50 flex items-center justify-center gap-2 transition-colors text-xs"
-              >
-                <Trash2 size={15} /> Eliminar
-              </button>
-            </div>
-          </div>
-        ))}
+          ))}
       </div>
 
       {/* Modal Principal de Edición / Creación */}
@@ -630,12 +860,12 @@ const CandidateManager = () => {
                 {/* TAB 1: DATOS GENERALES */}
                 {activeTab === 'general' && (
                   <div className="space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                       <div className="sm:col-span-2">
-                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">Nombre de la Lista</label>
+                        <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">Nombre del Partido</label>
                         <input
                           type="text" value={formData.nombre} onChange={e => setText('nombre', e.target.value)}
-                          placeholder="Ej: Lista Fuerza CATA"
+                          placeholder="Ej: Partido Fuerza CATA"
                           className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-semibold focus:border-blue-600"
                           required
                         />
@@ -644,21 +874,61 @@ const CandidateManager = () => {
                         <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">Sede Electoral</label>
                         <select
                           value={formData.sede && formData.sede.includes('Jerusal') ? 'Sede Jerusalén' : 'Sede Central'}
-                          onChange={e => setText('sede', e.target.value)}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setText('sede', val);
+                            if (val.includes('Jerusal')) setText('nivel', 'General');
+                          }}
                           className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-xs font-bold text-slate-800 focus:border-blue-600 cursor-pointer"
                         >
                           <option value="Sede Central">🏛️ Sede Central</option>
                           <option value="Sede Jerusalén">⛪ Sede Jerusalén</option>
                         </select>
                       </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">Nivel Escolar</label>
+                        {formData.sede && formData.sede.includes('Jerusal') ? (
+                          <select
+                            value="General"
+                            disabled
+                            className="w-full px-3 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-500 cursor-not-allowed"
+                          >
+                            <option value="General">Unificado (Jerusalén)</option>
+                          </select>
+                        ) : (
+                          <select
+                            value={formData.nivel || 'Primaria'}
+                            onChange={e => setText('nivel', e.target.value)}
+                            className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-xs font-bold text-slate-800 focus:border-blue-600 cursor-pointer"
+                          >
+                            <option value="Primaria">🎒 Primaria (1° a 6°)</option>
+                            <option value="Secundaria">🎓 Secundaria (1° a 5°)</option>
+                            <option value="General">🌐 Ambos / General</option>
+                          </select>
+                        )}
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">Eslogan de Campaña</label>
-                      <input
-                        type="text" value={formData.slogan} onChange={e => setText('slogan', e.target.value)}
-                        placeholder="Ej: ¡Unidos por un CATA innovador y democrático!"
-                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-semibold focus:border-blue-600"
-                      />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">Eslogan de Campaña</label>
+                        <input
+                          type="text" value={formData.slogan} onChange={e => setText('slogan', e.target.value)}
+                          placeholder="Ej: ¡Unidos por un CATA innovador y democrático!"
+                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-semibold focus:border-blue-600"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">Estado de Inscripción</label>
+                        <select
+                          value={formData.estado_registro || 'aprobado'}
+                          onChange={e => setText('estado_registro', e.target.value)}
+                          className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-xs font-bold text-slate-800 focus:border-blue-600 cursor-pointer"
+                        >
+                          <option value="aprobado">Aprobado (Visible en Cédula y Portal)</option>
+                          <option value="en_revision">En Revisión (Pendiente de Visto Bueno)</option>
+                          <option value="borrador">Borrador (Incompleto)</option>
+                        </select>
+                      </div>
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">Descripción Breve</label>
@@ -700,11 +970,10 @@ const CandidateManager = () => {
                               type="button"
                               onClick={() => setText('color', swatch.hex)}
                               title={swatch.name}
-                              className={`w-7 h-7 rounded-xl transition-all cursor-pointer flex items-center justify-center ${
-                                isSelected
+                              className={`w-7 h-7 rounded-xl transition-all cursor-pointer flex items-center justify-center ${isSelected
                                   ? 'ring-2 ring-offset-2 ring-slate-800 scale-110 shadow-sm'
                                   : 'hover:scale-105 opacity-80 hover:opacity-100'
-                              }`}
+                                }`}
                               style={{ backgroundColor: swatch.hex }}
                             >
                               {isSelected && (
@@ -713,7 +982,7 @@ const CandidateManager = () => {
                             </button>
                           );
                         })}
-                        
+
                         {/* Selector de color nativo libre */}
                         <div className="flex items-center gap-2 pl-3 border-l border-slate-200 ml-auto">
                           <label className="text-xs font-bold text-slate-600 cursor-pointer flex items-center gap-1.5">
@@ -728,319 +997,221 @@ const CandidateManager = () => {
                         </div>
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                      <FileUploadField
-                        label="Foto de Portada"
-                        file={formData.foto}
-                        existingUrl={existingFiles.foto}
-                        onChange={f => setFile('foto', f)}
-                        onClear={() => setFile('foto', null)}
-                        helperText="Banner o afiche de la lista"
-                      />
-                      <FileUploadField
-                        label="Logo / Símbolo"
-                        file={formData.logo}
-                        existingUrl={existingFiles.logo}
-                        onChange={f => setFile('logo', f)}
-                        onClear={() => setFile('logo', null)}
-                        helperText="Insignia para la cédula de votación"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* TAB 2: ASISTENTE INTELIGENTE PDF (100% LOCAL Y GRATUITO) */}
-                {activeTab === 'asistente' && (
-                  <div className="space-y-5">
-                    <div className="p-4 rounded-2xl border" style={{ backgroundColor: BLUE_LIGHT, borderColor: '#C7D9FF' }}>
-                      <div className="flex items-start gap-3">
-                        <Sparkles className="w-5 h-5 mt-0.5 flex-shrink-0" style={{ color: BLUE }} />
-                        <div>
-                          <h4 className="text-sm font-bold" style={{ color: BLUE }}>Asistente Electoral de Documentos (100% Local)</h4>
-                          <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                            Sube el PDF o tríptico de la lista. El sistema leerá el texto localmente y <strong>cruzará los nombres con el padrón del colegio</strong> para detectar automáticamente quién es el alcalde, regidores y sus propuestas sin que tengas que transcribir todo a mano.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="border-2 border-dashed border-slate-200 hover:border-blue-500 rounded-2xl p-6 text-center transition-colors">
-                      <FileCode className="w-10 h-10 mx-auto text-slate-400 mb-2" />
-                      <p className="text-xs font-bold text-slate-700">Arrastra o selecciona el Plan de Trabajo en formato PDF</p>
-                      <p className="text-[11px] text-slate-400 mt-0.5">Compatible con documentos de Word, Canva o folletos oficiales (.pdf)</p>
-                      <input
-                        type="file"
-                        accept="application/pdf"
-                        onChange={e => handlePdfUploadAndAnalyze(e.target.files[0])}
-                        className="mt-3 text-xs file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
-                      />
-                    </div>
-
-                    {analyzingPdf && (
-                      <div className="p-4 text-center text-xs font-bold text-blue-700 animate-pulse bg-blue-50 rounded-xl">
-                        🔍 Analizando documento PDF y cruzando datos con el padrón escolar...
-                      </div>
-                    )}
-
-                    {analysisError && (
-                      <div className="p-3 bg-red-50 text-red-700 text-xs rounded-xl flex items-center gap-2">
-                        <AlertCircle size={15} /> {analysisError}
-                      </div>
-                    )}
-
-                    {analysisResult && (
-                      <div className="space-y-4 pt-2">
-                        <div className="flex justify-between items-center">
-                          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Resultados del Análisis</h4>
-                          <button
-                            type="button"
-                            onClick={applyAllSuggestions}
-                            className="px-3 py-1.5 rounded-lg text-xs font-bold text-white shadow transition-colors flex items-center gap-1.5"
-                            style={{ backgroundColor: BLUE }}
-                          >
-                            <Sparkles size={13} /> Aplicar todas las sugerencias
-                          </button>
-                        </div>
-
-                        {/* Sede Asignada */}
-                        <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 text-xs">
-                          <div>
-                            <span className="font-bold text-slate-500 text-[10px] uppercase block">Sede Asignada por Administrador:</span>
-                            <span className="font-black text-blue-950 text-sm mt-0.5 block">
-                              {formData.sede && formData.sede.includes('Jerusal') ? '⛪ Sede Jerusalén' : '🏛️ Sede Central'}
-                            </span>
-                            <span className="text-[11px] text-slate-500 mt-0.5 block">
-                              El asistente no altera la sede para garantizar la separación de padrones.
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[11px] text-slate-500 font-semibold">Cambiar:</span>
-                            <select
-                              value={formData.sede && formData.sede.includes('Jerusal') ? 'Sede Jerusalén' : 'Sede Central'}
-                              onChange={e => setText('sede', e.target.value)}
-                              className="px-3 py-1.5 rounded-xl border border-blue-300 bg-white text-xs font-bold text-slate-800 shadow-sm outline-none cursor-pointer"
-                            >
-                              <option value="Sede Central">🏛️ Sede Central</option>
-                              <option value="Sede Jerusalén">⛪ Sede Jerusalén</option>
-                            </select>
-                          </div>
-                        </div>
-
-                        {/* Nombre de la lista detectado */}
-                        {analysisResult.nombre && (
-                          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex justify-between items-center text-xs">
-                            <div>
-                              <span className="font-bold text-slate-500 block text-[10px] uppercase">Nombre de Lista Detectado:</span>
-                              <span className="font-bold text-slate-800">{analysisResult.nombre}</span>
+                    {/* Símbolo o Logo Oficial de la Lista con Auto-Detección de Color */}
+                    <div className="pt-2 space-y-1.5">
+                      <label className="block text-xs font-bold text-slate-700 uppercase">
+                        Símbolo o Logo de la Lista
+                      </label>
+                      <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <div className="flex items-center gap-3 w-full sm:w-auto min-w-0">
+                          {(formData.logo || existingFiles.logo) ? (
+                            <div className="w-16 h-16 rounded-xl border border-slate-300 bg-white p-1 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-xs">
+                              <img
+                                src={formData.logo ? URL.createObjectURL(formData.logo) : getAssetUrl(existingFiles.logo)}
+                                alt="Logo"
+                                className="max-w-full max-h-full object-contain"
+                              />
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => setText('nombre', analysisResult.nombre)}
-                              className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100"
-                            >
-                              Usar
-                            </button>
-                          </div>
-                        )}
-
-                        {/* Eslogan detectado */}
-                        {analysisResult.slogan && (
-                          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex justify-between items-center text-xs">
-                            <div>
-                              <span className="font-bold text-slate-500 block text-[10px] uppercase">Eslogan Detectado:</span>
-                              <span className="font-semibold text-slate-800 italic">"{analysisResult.slogan}"</span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setText('slogan', analysisResult.slogan)}
-                              className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100"
-                            >
-                              Usar
-                            </button>
-                          </div>
-                        )}
-
-                        {/* Integrantes detectados en el PDF */}
-                        <div className="space-y-2">
-                          <span className="font-bold text-slate-500 block text-[11px] uppercase">
-                            Integrantes Detectados en el Documento ({analysisResult.alumnos_detectados?.length || 0}):
-                          </span>
-                          {(!analysisResult.alumnos_detectados || analysisResult.alumnos_detectados.length === 0) ? (
-                            <p className="text-xs text-slate-400 italic">No se identificaron integrantes en el documento.</p>
                           ) : (
-                            <div className="grid grid-cols-1 gap-2">
-                              {analysisResult.alumnos_detectados.map((a, i) => (
-                                <div key={i} className="p-2.5 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between text-xs">
-                                  <div>
-                                    <div className="flex items-center gap-1.5">
-                                      <p className="font-bold text-slate-800">{a.nombre}</p>
-                                      <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold ${a.verificado_padron ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}`}>
-                                        {a.verificado_padron ? '✓ Padrón' : 'Detectado'}
-                                      </span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400">DNI: {a.dni || 'Sin DNI'} · {a.grado} · Rol: <strong className="text-blue-700 uppercase">{a.rol_sugerido}</strong></p>
-                                  </div>
-                                  <div className="flex gap-1 flex-wrap justify-end">
-                                    <button
-                                      type="button"
-                                      onClick={() => setText(a.rol_sugerido || 'alcalde', a.nombre)}
-                                      className="px-2 py-0.5 text-[10px] font-bold rounded bg-blue-100 text-blue-800 hover:bg-blue-200 transition-colors"
-                                    >
-                                      Asignar ({a.rol_sugerido})
-                                    </button>
-                                  </div>
-                                </div>
-                              ))}
+                            <div className="w-16 h-16 rounded-xl border-2 border-dashed border-slate-300 bg-white flex items-center justify-center text-slate-400 flex-shrink-0">
+                              <ImageIcon size={24} />
                             </div>
                           )}
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-800 truncate">
+                              {formData.logo ? formData.logo.name : existingFiles.logo ? 'Logo cargado en el sistema' : 'Sin logo seleccionado'}
+                            </p>
+                            <p className="text-[11px] text-slate-500 mt-0.5">
+                              Color del partido: <span className="font-mono font-bold" style={{ color: formData.color }}>{formData.color || '#1B3A8C'}</span>
+                            </p>
+                          </div>
                         </div>
 
-                        {/* Propuestas detectadas */}
-                        {analysisResult.propuestas && (
-                          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs">
-                            <div className="flex justify-between items-center mb-1">
-                              <span className="font-bold text-slate-500 block text-[10px] uppercase">Propuestas Identificadas:</span>
-                              <button
-                                type="button"
-                                onClick={() => setText('propuestas', analysisResult.propuestas)}
-                                className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100"
-                              >
-                                Copiar a Plan de Trabajo
-                              </button>
-                            </div>
-                            <pre className="text-[11px] text-slate-600 font-sans whitespace-pre-wrap max-h-32 overflow-y-auto">
-                              {analysisResult.propuestas}
-                            </pre>
-                          </div>
-                        )}
+                        <div className="flex items-center gap-2 self-end sm:self-center">
+                          <label className="px-3.5 py-2 bg-white border border-slate-300 hover:bg-slate-100 rounded-xl text-xs font-bold text-slate-700 cursor-pointer shadow-xs transition-colors">
+                            Seleccionar Logo
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={e => e.target.files?.[0] && handleLogoChange(e.target.files[0])}
+                              className="hidden"
+                            />
+                          </label>
+                          {(formData.logo || existingFiles.logo) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFile('logo', null);
+                                setExistingFiles(prev => ({ ...prev, logo: null }));
+                              }}
+                              className="p-2 text-slate-400 hover:text-red-600 rounded-xl hover:bg-red-50 transition-colors cursor-pointer"
+                              title="Quitar logo"
+                            >
+                              <X size={16} />
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    )}
+                    </div>
                   </div>
                 )}
 
-                {/* TAB 3: JUNTA DIRECTIVA (CON AUTOCOMPLETADO VINCULADO AL PADRÓN) */}
+                {/* TAB 2: JUNTA DIRECTIVA (7 CARGOS CON PADRÓN INTEGRADO) */}
                 {activeTab === 'directiva' && (
                   <div className="space-y-4">
-                    <p className="text-xs text-slate-500 font-semibold">
-                      Escribe el nombre o DNI del alumno para autocompletar con los datos oficiales del padrón escolar.
-                    </p>
+                    <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-2xl flex items-center justify-between text-xs text-blue-900">
+                      <span className="font-semibold">
+                        Escribe el <strong>DNI o Apellidos</strong> en el buscador de cada cargo para autocompletar con los datos oficiales del padrón. El nombre y grado quedan 100% editables.
+                      </span>
+                    </div>
 
-                    {[
-                      { label: 'Alcalde(sa)', nameField: 'alcalde', photoField: 'alcalde_foto' },
-                      { label: 'Teniente Alcalde(sa)', nameField: 'teniente', photoField: 'teniente_foto' },
-                      { label: 'Regidor(a) de Educación, Cultura y Deporte', nameField: 'regidor_educacion', photoField: 'regidor_educacion_foto' },
-                      { label: 'Regidor(a) de Salud y Medio Ambiente', nameField: 'regidor_salud', photoField: 'regidor_salud_foto' },
-                      { label: 'Regidor(a) de Derechos del Niño y Adolescente', nameField: 'regidor_derechos', photoField: 'regidor_derechos_foto' }
-                    ].map(member => (
-                      <div key={member.nameField} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3 relative">
-                        <div>
-                          <label className="block text-xs font-bold text-slate-600 uppercase mb-1">{member.label}</label>
-                          <div className="relative">
-                            <input
-                              type="text"
-                              value={formData[member.nameField]}
-                              onChange={e => handleStudentSearch(member.nameField, e.target.value)}
-                              placeholder={`Buscar por nombre o DNI del ${member.label.toLowerCase()}...`}
-                              className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl outline-none text-sm font-semibold focus:border-blue-600"
-                            />
-                            {searchLoading && activeSearchField === member.nameField && (
-                              <div className="absolute right-3 top-3 text-[10px] text-blue-600 font-bold animate-pulse">Buscando...</div>
-                            )}
-                          </div>
+                    <div className="space-y-4">
+                      {CARGOS.map((cargo, idx) => {
+                        const nameField = cargo.key;
+                        const gradoField = `${cargo.key}_grado`;
+                        const photoField = `${cargo.key}_foto`;
 
-                          {/* Menú de Autocompletado */}
-                          {activeSearchField === member.nameField && studentSuggestions.length > 0 && (
-                            <div className="absolute left-4 right-4 z-30 mt-1 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden max-h-48 overflow-y-auto">
-                              {studentSuggestions.map((st, idx) => (
-                                <button
-                                  key={idx}
-                                  type="button"
-                                  onClick={() => selectStudent(member.nameField, st)}
-                                  className="w-full text-left px-4 py-2 hover:bg-blue-50 border-b border-slate-50 last:border-0 transition-colors flex justify-between items-center"
-                                >
-                                  <div>
-                                    <p className="text-xs font-bold text-slate-800">{st.nombre}</p>
-                                    <p className="text-[10px] text-slate-400">DNI: {st.dni} · {st.ngs || st.grado || 'Matriculado'}</p>
-                                  </div>
-                                  <span className="text-[10px] px-2 py-0.5 rounded font-bold text-blue-700 bg-blue-100">Seleccionar</span>
-                                </button>
-                              ))}
+                        return (
+                          <div key={cargo.key} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3 relative">
+                            <div className="flex items-center justify-between flex-wrap gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className="w-5 h-5 rounded-full bg-blue-700 text-white text-[11px] font-black flex items-center justify-center">
+                                  {idx + 1}
+                                </span>
+                                <span className="text-xs font-black text-slate-800 uppercase tracking-wide">
+                                  {cargo.label}
+                                </span>
+                              </div>
+                              <span className="text-[11px] text-slate-500 italic">
+                                {cargo.desc}
+                              </span>
                             </div>
-                          )}
-                        </div>
 
-                        <FileUploadField
-                          label="Foto del integrante"
-                          file={formData[member.photoField]}
-                          existingUrl={existingFiles[member.photoField]}
-                          onChange={f => setFile(member.photoField, f)}
-                          onClear={() => setFile(member.photoField, null)}
-                          helperText={`Foto de perfil de ${member.label}`}
-                        />
-                      </div>
-                    ))}
+                            {/* Buscador en el padrón */}
+                            <div className="relative">
+                              <input
+                                type="text"
+                                placeholder={`Buscar por DNI o apellidos en padrón para ${cargo.label}...`}
+                                onChange={e => handleStudentSearch(nameField, e.target.value)}
+                                className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold placeholder:text-slate-400 outline-none focus:border-blue-600"
+                              />
+                              {searchLoading && activeSearchField === nameField && (
+                                <div className="absolute right-3 top-2.5 text-[10px] text-blue-600 font-bold animate-pulse">
+                                  Buscando...
+                                </div>
+                              )}
+
+                              {/* Menú de Autocompletado */}
+                              {activeSearchField === nameField && studentSuggestions.length > 0 && (
+                                <div className="absolute left-0 right-0 z-30 mt-1 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden max-h-48 overflow-y-auto">
+                                  {studentSuggestions.map((st, sIdx) => (
+                                    <button
+                                      key={sIdx}
+                                      type="button"
+                                      onClick={() => selectStudent(nameField, st)}
+                                      className="w-full text-left px-4 py-2 hover:bg-blue-50 border-b border-slate-100 last:border-0 transition-colors flex justify-between items-center cursor-pointer"
+                                    >
+                                      <div>
+                                        <p className="text-xs font-bold text-slate-800">{st.nombre}</p>
+                                        <p className="text-[10px] text-slate-400">DNI: {st.dni} · {st.ngs || st.grado || 'Matriculado'}</p>
+                                      </div>
+                                      <span className="text-[10px] px-2 py-0.5 rounded font-bold text-blue-700 bg-blue-100">
+                                        Seleccionar
+                                      </span>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Campos Editables: Nombre y Grado */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                              <div className="sm:col-span-2">
+                                <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+                                  Nombre Completo del Alumno
+                                </label>
+                                <input
+                                  type="text"
+                                  value={formData[nameField] || ''}
+                                  onChange={e => setText(nameField, e.target.value)}
+                                  placeholder="Nombre y apellidos del estudiante"
+                                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-blue-600"
+                                />
+                              </div>
+
+                              <div>
+                                <div className="flex items-center justify-between mb-1">
+                                  <label className="block text-[11px] font-bold text-slate-600 uppercase">
+                                    Grado y Sección
+                                  </label>
+                                  <button
+                                    type="button"
+                                    onClick={() => setOpenGradoAccordion(openGradoAccordion === gradoField ? null : gradoField)}
+                                    className="text-[10px] font-black text-blue-600 hover:text-blue-700 flex items-center gap-0.5 cursor-pointer"
+                                  >
+                                    <GraduationCap size={11} /> Sugerencias <ChevronDown size={10} />
+                                  </button>
+                                </div>
+                                <input
+                                  type="text"
+                                  value={formData[gradoField] || ''}
+                                  onChange={e => setText(gradoField, e.target.value)}
+                                  placeholder="Ej: 5° SEC A"
+                                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-blue-600"
+                                />
+                                {openGradoAccordion === gradoField && (
+                                  <div className="mt-1.5 p-2 bg-white rounded-xl border border-blue-200 shadow-lg flex flex-wrap gap-1 max-h-36 overflow-y-auto z-30 relative">
+                                    {((formData.nivel || '').toLowerCase().includes('sec') ? GRADOS_SECUNDARIA : GRADOS_PRIMARIA).map(g => (
+                                      <button
+                                        key={g}
+                                        type="button"
+                                        onClick={() => {
+                                          setText(gradoField, g);
+                                          setOpenGradoAccordion(null);
+                                        }}
+                                        className="px-2 py-1 bg-slate-50 hover:bg-blue-600 hover:text-white rounded text-[10px] font-bold text-slate-700 border border-slate-200 transition-colors cursor-pointer"
+                                      >
+                                        {g}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Foto individual del integrante */}
+                            <FileUploadField
+                              label="Foto del Integrante (Opcional)"
+                              file={formData[photoField]}
+                              existingUrl={existingFiles[photoField]}
+                              onChange={f => setFile(photoField, f)}
+                              onClear={() => setFile(photoField, null)}
+                              helperText={`Foto de perfil de ${cargo.label}`}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 
-                {/* TAB 4: PLAN DE TRABAJO & DOCUMENTO PDF */}
+                {/* TAB 3: PLAN DE TRABAJO Y PROPUESTAS */}
                 {activeTab === 'propuestas' && (
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">Propuestas Principales (Viñetas para Celular)</label>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">
+                        Propuestas Principales y Ejes de Gestión
+                      </label>
+                      <p className="text-xs text-slate-500 mb-2">
+                        Redacta las propuestas que se mostrarán en la ficha oficial y en el portal escolar para los estudiantes.
+                      </p>
                       <textarea
-                        value={formData.propuestas} onChange={e => setText('propuestas', e.target.value)}
-                        placeholder="• Mejoras continuas en la biblioteca escolar&#10;• Creación de comités deportivos inter-aulas&#10;• Talleres de robótica y tecnología..."
-                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-sans focus:border-blue-600"
-                        rows="6"
+                        value={formData.propuestas}
+                        onChange={e => setText('propuestas', e.target.value)}
+                        placeholder="1. Fomentar torneos deportivos y recreativos inter-aulas&#10;2. Implementación de talleres de robótica y tecnología&#10;3. Campañas de reciclaje y cuidado de áreas verdes..."
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-sans focus:border-blue-600"
+                        rows="8"
                       />
-                    </div>
-
-                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                      <FileUploadField
-                        label="Documento PDF Oficial (Plan de Trabajo Completo)"
-                        file={formData.propuestas_pdf}
-                        existingUrl={formData.propuestas_pdf_path || existingFiles.propuestas_pdf}
-                        onChange={f => {
-                          setFile('propuestas_pdf', f);
-                        }}
-                        onClear={() => {
-                          setFile('propuestas_pdf', null);
-                          setText('propuestas_pdf_path', '');
-                          setExistingFiles(prev => ({ ...prev, propuestas_pdf: null }));
-                        }}
-                        accept="application/pdf"
-                        isPdf={true}
-                        helperText="Se mostrará con visor interactivo en el portal público de los estudiantes"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* TAB 5: VISTA PREVIA EN VIVO */}
-                {activeTab === 'preview' && (
-                  <div className="space-y-4">
-                    <p className="text-xs text-slate-500 font-semibold">Así verán los estudiantes esta lista en el portal oficial:</p>
-                    <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-3">
-                      <h4 className="text-lg font-black text-slate-800">{formData.nombre || 'Nombre de la Lista'}</h4>
-                      {formData.slogan && <p className="text-xs text-slate-500 italic">"{formData.slogan}"</p>}
-                      {formData.alcalde && (
-                        <div className="flex items-center gap-2 text-xs">
-                          <span className="px-2 py-0.5 rounded font-bold bg-blue-100 text-blue-800">Alcalde</span>
-                          <span className="font-bold text-slate-700">{formData.alcalde}</span>
-                        </div>
-                      )}
-                      {formData.teniente && (
-                        <div className="flex items-center gap-2 text-xs">
-                          <span className="px-2 py-0.5 rounded font-bold bg-slate-100 text-slate-700">Teniente</span>
-                          <span className="font-semibold text-slate-600">{formData.teniente}</span>
-                        </div>
-                      )}
-                      {formData.propuestas && (
-                        <div className="pt-2 border-t border-slate-100">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase">Propuestas:</span>
-                          <p className="text-xs text-slate-600 whitespace-pre-wrap mt-1 leading-relaxed">{formData.propuestas}</p>
-                        </div>
-                      )}
                     </div>
                   </div>
                 )}
@@ -1062,6 +1233,397 @@ const CandidateManager = () => {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL PARA GENERAR ENLACE DE POSTULACIÓN (WHATSAPP / LINK MÁGICO) */}
+      <AnimatePresence>
+        {showLinkModal && (
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ scale: 0.94, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.94, opacity: 0 }}
+              className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl border border-slate-200"
+            >
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-black">
+                    <Share2 size={18} />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-slate-900">Generar Enlace de Postulación</h3>
+                    <p className="text-[11px] text-slate-500">Crea un enlace para que los candidatos llenen su propia lista.</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowLinkModal(false)} className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100">
+                  <X size={18} />
+                </button>
+              </div>
+
+              {!generatedLink ? (
+                <div className="space-y-3.5 py-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-black uppercase tracking-wider text-slate-700 mb-1">
+                        Sede
+                      </label>
+                      <select
+                        value={linkConfig.sede}
+                        onChange={e => setLinkConfig(prev => ({ ...prev, sede: e.target.value }))}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-xs outline-none focus:border-blue-500"
+                      >
+                        <option value="Sede Central">🏛️ Sede Central</option>
+                        <option value="Sede Jerusalén">⛪ Sede Jerusalén</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-black uppercase tracking-wider text-slate-700 mb-1">
+                        Nivel Educativo
+                      </label>
+                      <select
+                        value={linkConfig.nivel}
+                        onChange={e => setLinkConfig(prev => ({ ...prev, nivel: e.target.value }))}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-xs outline-none focus:border-blue-500"
+                      >
+                        <option value="Primaria">🎒 Primaria</option>
+                        <option value="Secundaria">🎓 Secundaria</option>
+                        <option value="General">🌐 General (Jerusalén)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-black uppercase tracking-wider text-slate-800 mb-1 flex items-center justify-between">
+                      <span>Alumno o Personero Responsable</span>
+                      <span className="text-[10px] text-blue-600 font-bold">Identificador del Link</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={linkConfig.responsable}
+                      onChange={e => setLinkConfig(prev => ({ ...prev, responsable: e.target.value }))}
+                      placeholder="Ejemplo: Diego Quispe (5° Sec B)"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-blue-300 bg-blue-50/20 font-bold text-xs outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-100"
+                    />
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      El enlace se personalizará con este nombre para saber con exactitud a quién se le entregó.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-black uppercase tracking-wider text-slate-700 mb-1">
+                        WhatsApp de Contacto (Opcional)
+                      </label>
+                      <input
+                        type="tel"
+                        value={linkConfig.telefono}
+                        onChange={e => setLinkConfig(prev => ({ ...prev, telefono: e.target.value }))}
+                        placeholder="Ejemplo: 987654321"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-medium text-xs outline-none focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-black uppercase tracking-wider text-slate-700 mb-1">
+                        Nombre Preliminar (Opcional)
+                      </label>
+                      <input
+                        type="text"
+                        value={linkConfig.nombre}
+                        onChange={e => setLinkConfig(prev => ({ ...prev, nombre: e.target.value }))}
+                        placeholder={linkConfig.responsable ? `Lista de ${linkConfig.responsable}` : "Ej: Lista Postulante 1"}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-medium text-xs outline-none focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowLinkModal(false)}
+                      className="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-100"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleGenerateLink}
+                      disabled={generatingLink}
+                      className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs shadow-md disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                    >
+                      {generatingLink ? 'Generando...' : 'Crear y Obtener Enlace'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="py-4 space-y-4">
+                  <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200">
+                    <div className="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
+                      <div className="flex items-center gap-2 text-emerald-800 font-black text-xs">
+                        <CheckCircle2 size={16} /> ¡Enlace Identificado y Generado con Éxito!
+                      </div>
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900">
+                        {linkConfig.sede} · {linkConfig.nivel}
+                      </span>
+                    </div>
+
+                    {linkConfig.responsable && (
+                      <div className="mb-2 text-xs font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
+                        <span className="text-slate-500">Asignado a:</span>
+                        <span className="text-emerald-950 bg-white px-2.5 py-1 rounded-lg border border-emerald-300 shadow-2xs">
+                          👤 {linkConfig.responsable}
+                        </span>
+                        {linkConfig.telefono && (
+                          <span className="text-slate-600 font-mono text-[11px]">📱 {linkConfig.telefono}</span>
+                        )}
+                      </div>
+                    )}
+
+                    <p className="text-[11px] text-emerald-700 leading-relaxed mb-3">
+                      Envía este enlace por WhatsApp al responsable de la lista. Podrá llenarlo desde su celular o PC.
+                    </p>
+                    <div className="p-3 bg-white rounded-xl border border-emerald-300 font-mono text-xs text-slate-900 break-all select-all font-bold shadow-2xs">
+                      {generatedLink}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                    <a
+                      href={(() => {
+                        const msg = `¡Hola${linkConfig.responsable ? ' ' + linkConfig.responsable : ''}! El Comité Electoral del Colegio te hace entrega del enlace oficial para registrar tu lista electoral (Municipio Escolar CATA 2026):\n\n🔗 ${generatedLink}\n\nPuedes ingresar desde tu celular para completar los 7 cargos y subir el logo de tu lista. ¡Muchos éxitos!`;
+                        return linkConfig.telefono
+                          ? `https://wa.me/51${linkConfig.telefono.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`
+                          : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+                      })()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all"
+                    >
+                      <Share2 size={16} /> Enviar por WhatsApp
+                    </a>
+
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(generatedLink)}
+                      className="py-3 px-4 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 font-black text-xs shadow-2xs flex items-center justify-center gap-2 cursor-pointer transition-all"
+                    >
+                      {linkCopied ? (
+                        <>
+                          <Check size={16} /> ¡Copiado!
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={16} /> Copiar Link
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowLinkModal(false)}
+                      className="py-3 px-4 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-100 cursor-pointer"
+                    >
+                      Listo / Cerrar
+                    </button>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal de Revisión Completa de Postulación */}
+      <AnimatePresence>
+        {showReviewModal && reviewCandidate && (
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
+            <motion.div
+              initial={{ scale: 0.93, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.93, opacity: 0 }}
+              className="bg-white rounded-3xl max-w-3xl w-full shadow-2xl max-h-[92vh] flex flex-col overflow-hidden"
+            >
+              {/* Header Modal */}
+              <div className="p-5 sm:p-6 border-b border-slate-100 flex items-center justify-between" style={{ backgroundColor: BLUE_LIGHT }}>
+                <div className="flex items-center gap-3 min-w-0">
+                  {reviewCandidate.logo ? (
+                    <img src={getAssetUrl(reviewCandidate.logo)} alt="Logo" className="w-12 h-12 rounded-xl object-contain bg-white p-1 border shadow-xs flex-shrink-0" />
+                  ) : (
+                    <div className="w-12 h-12 rounded-xl bg-blue-600 text-white font-black text-xl flex items-center justify-center shadow-xs flex-shrink-0">
+                      {reviewCandidate.nombre.charAt(0)}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-lg font-black text-slate-900 truncate">{reviewCandidate.nombre}</h3>
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-white text-slate-700 shadow-xs border">
+                        {reviewCandidate.sede?.includes('Jerusal') ? '⛪ Sede Jerusalén' : '🏛️ Sede Central'} - {reviewCandidate.nivel || 'General'}
+                      </span>
+                      {reviewCandidate.estado_registro === 'aprobado' ? (
+                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                          <CheckCircle2 size={12} /> Aprobado Oficial
+                        </span>
+                      ) : reviewCandidate.estado_registro === 'en_revision' ? (
+                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-blue-100 text-blue-800 border border-blue-300 animate-pulse flex items-center gap-1">
+                          <AlertCircle size={12} /> En Revisión
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-amber-100 text-amber-800 border border-amber-300">
+                          Borrador
+                        </span>
+                      )}
+                    </div>
+                    {reviewCandidate.slogan && (
+                      <p className="text-xs text-slate-600 italic mt-0.5 truncate">"{reviewCandidate.slogan}"</p>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowReviewModal(false)}
+                  className="p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-white/80 transition-colors cursor-pointer flex-shrink-0 ml-2"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Contenido scrolleable */}
+              <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5">
+                {/* Fila de Color y Enlace */}
+                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-600 uppercase text-[10px]">Color Oficial:</span>
+                    <span className="w-5 h-5 rounded-full border border-slate-300 shadow-xs flex-shrink-0" style={{ backgroundColor: reviewCandidate.color || '#1B3A8C' }} />
+                    <span className="font-mono font-bold text-slate-700">{reviewCandidate.color || '#1B3A8C'}</span>
+                  </div>
+
+                  {reviewCandidate.responsable_entrega && (
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 font-bold text-xs">
+                      <UserCheck size={13} className="text-amber-700 shrink-0" />
+                      <span>Entregado a: {reviewCandidate.responsable_entrega} {reviewCandidate.telefono_responsable && `(${reviewCandidate.telefono_responsable})`}</span>
+                    </div>
+                  )}
+                  {reviewCandidate.token_registro && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-500 font-semibold">Enlace Postulación:</span>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(`${window.location.origin}/postular/${reviewCandidate.token_registro}`)}
+                        className="px-2.5 py-1 bg-white hover:bg-slate-100 text-blue-700 font-bold border border-slate-300 rounded-lg flex items-center gap-1 cursor-pointer transition-colors shadow-xs"
+                      >
+                        <Copy size={12} /> Copiar Link WhatsApp
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Junta Directiva (7 Cargos) */}
+                <div>
+                  <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <Users size={16} className="text-blue-600" /> Miembros de la Junta Directiva Oficial (7 Cargos)
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {[
+                      { role: 'Alcalde ó Alcaldesa', name: reviewCandidate.alcalde, grado: reviewCandidate.alcalde_grado, foto: reviewCandidate.alcalde_foto, highlight: true },
+                      { role: 'Teniente Alcalde', name: reviewCandidate.teniente, grado: reviewCandidate.teniente_grado, foto: reviewCandidate.teniente_foto },
+                      { role: 'Reg. Educación, Cultura y Deporte', name: reviewCandidate.regidor_educacion, grado: reviewCandidate.regidor_educacion_grado, foto: reviewCandidate.regidor_educacion_foto },
+                      { role: 'Reg. Salud y Ambiente', name: reviewCandidate.regidor_salud, grado: reviewCandidate.regidor_salud_grado, foto: reviewCandidate.regidor_salud_foto },
+                      { role: 'Reg. Emprendimiento y Actividades Productivas', name: reviewCandidate.regidor_emprendimiento, grado: reviewCandidate.regidor_emprendimiento_grado, foto: reviewCandidate.regidor_emprendimiento_foto },
+                      { role: 'Reg. Derechos del Niño, Niña y Adolescente', name: reviewCandidate.regidor_derechos, grado: reviewCandidate.regidor_derechos_grado, foto: reviewCandidate.regidor_derechos_foto },
+                      { role: 'Reg. Comunicación y Tecnologías', name: reviewCandidate.regidor_comunicacion, grado: reviewCandidate.regidor_comunicacion_grado, foto: reviewCandidate.regidor_comunicacion_foto },
+                    ].map((m, idx) => (
+                      <div
+                        key={idx}
+                        className={`p-3 rounded-2xl border transition-all flex items-center gap-3 ${
+                          m.highlight
+                            ? 'bg-blue-50/80 border-blue-300 shadow-xs sm:col-span-2'
+                            : m.name
+                            ? 'bg-white border-slate-200 shadow-xs'
+                            : 'bg-slate-50 border-dashed border-slate-300 opacity-60'
+                        }`}
+                      >
+                        <div className="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex-shrink-0 flex items-center justify-center">
+                          {m.foto ? (
+                            <img src={getAssetUrl(m.foto)} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="font-black text-sm text-slate-400">
+                              {m.name ? m.name.charAt(0) : '?'}
+                            </span>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <span className="text-[10px] font-black uppercase text-blue-700 tracking-wider block">
+                            {m.role}
+                          </span>
+                          <p className="text-xs font-bold text-slate-800 truncate">
+                            {m.name || <span className="italic text-slate-400 font-normal">No registrado</span>}
+                          </p>
+                          <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
+                            {m.grado ? `Grado y Sección: ${m.grado}` : <span className="text-slate-400">Grado no especificado</span>}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Propuestas y Plan de Trabajo */}
+                <div>
+                  <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-2">
+                    <FileText size={16} className="text-blue-600" /> Plan de Trabajo y Propuestas
+                  </h4>
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+                    {reviewCandidate.propuestas ? (
+                      <div className="space-y-1.5 text-xs text-slate-700 whitespace-pre-line leading-relaxed font-medium">
+                        {reviewCandidate.propuestas}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-400 italic">No se redactaron propuestas para esta lista.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer Actions */}
+              <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setShowReviewModal(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Cerrar
+                </button>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowReviewModal(false);
+                      openEdit(reviewCandidate);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                  >
+                    <Edit3 size={14} /> Editar Datos
+                  </button>
+
+                  {reviewCandidate.estado_registro !== 'aprobado' ? (
+                    <button
+                      type="button"
+                      onClick={() => handleApproveCandidate(reviewCandidate.id)}
+                      className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black flex items-center gap-2 transition-colors cursor-pointer shadow-md"
+                    >
+                      <ShieldCheck size={16} /> Dar Visto Bueno / Aprobar Lista Oficialmente
+                    </button>
+                  ) : (
+                    <span className="px-4 py-2 rounded-xl bg-emerald-100 text-emerald-800 text-xs font-black flex items-center gap-1.5 border border-emerald-300">
+                      <CheckCircle2 size={15} /> Lista Aprobada Oficialmente (Activa en Portal y Cédula)
+                    </span>
+                  )}
+                </div>
+              </div>
             </motion.div>
           </div>
         )}

@@ -55,7 +55,8 @@ function handle_admin_stats() {
     try {
         $sede = isset($_GET['sede']) ? trim($_GET['sede']) : null;
         $ngs = isset($_GET['ngs']) ? trim($_GET['ngs']) : null;
-        $stats = StatsManager::get_dashboard_stats($sede, $ngs);
+        $nivel = isset($_GET['nivel']) ? trim($_GET['nivel']) : null;
+        $stats = StatsManager::get_dashboard_stats($sede, $ngs, $nivel);
         echo json_encode($stats);
     } catch (Exception $e) {
         http_response_code(500);
@@ -74,10 +75,11 @@ function handle_admin_alumnos() {
     try {
         $sede = isset($_GET['sede']) ? trim($_GET['sede']) : null;
         $ngs = isset($_GET['ngs']) ? trim($_GET['ngs']) : null;
+        $nivel = isset($_GET['nivel']) ? trim($_GET['nivel']) : null;
         $estado = isset($_GET['estado']) ? trim($_GET['estado']) : 'todos';
         $search = isset($_GET['search']) ? trim($_GET['search']) : null;
 
-        $resultado = getStudentsFiltered($sede, $ngs, $estado, $search);
+        $resultado = getStudentsFiltered($sede, $ngs, $estado, $search, $nivel);
         echo json_encode($resultado);
     } catch (Exception $e) {
         http_response_code(500);
@@ -121,7 +123,8 @@ function handle_admin_importar_lote() {
 function _process_candidate_files() {
     $fotos = [];
     $fotoFields = ['foto', 'logo', 'alcalde_foto', 'teniente_foto', 
-                   'regidor_educacion_foto', 'regidor_salud_foto', 'regidor_derechos_foto'];
+                   'regidor_educacion_foto', 'regidor_salud_foto', 'regidor_emprendimiento_foto',
+                   'regidor_derechos_foto', 'regidor_comunicacion_foto'];
     foreach ($fotoFields as $field) {
         if (!empty($_FILES[$field]['name'])) {
             $result = FileManager::save_candidate_photo($_FILES[$field]);
@@ -144,7 +147,8 @@ function _process_candidate_files() {
 
 function _candidato_to_response($c) {
     $fotoFields = ['foto', 'logo', 'alcalde_foto', 'teniente_foto',
-                   'regidor_educacion_foto', 'regidor_salud_foto', 'regidor_derechos_foto'];
+                   'regidor_educacion_foto', 'regidor_salud_foto', 'regidor_emprendimiento_foto',
+                   'regidor_derechos_foto', 'regidor_comunicacion_foto'];
     $resp = [
         'id' => (int)$c['id'],
         'nombre' => $c['nombre'],
@@ -155,9 +159,25 @@ function _candidato_to_response($c) {
         'teniente' => $c['teniente'] ?? null,
         'regidor_educacion' => $c['regidor_educacion'] ?? null,
         'regidor_salud' => $c['regidor_salud'] ?? null,
+        'regidor_emprendimiento' => $c['regidor_emprendimiento'] ?? null,
         'regidor_derechos' => $c['regidor_derechos'] ?? null,
+        'regidor_comunicacion' => $c['regidor_comunicacion'] ?? null,
         'sede' => $c['sede'] ?? 'Sede Principal',
+        'nivel' => $c['nivel'] ?? 'General',
         'color' => $c['color'] ?? null,
+        'token_registro' => $c['token_registro'] ?? null,
+        'estado_registro' => $c['estado_registro'] ?? 'aprobado',
+        'numero_lista' => $c['numero_lista'] ?? null,
+        'alcalde_grado' => $c['alcalde_grado'] ?? null,
+        'teniente_grado' => $c['teniente_grado'] ?? null,
+        'regidor_educacion_grado' => $c['regidor_educacion_grado'] ?? null,
+        'regidor_salud_grado' => $c['regidor_salud_grado'] ?? null,
+        'regidor_emprendimiento_grado' => $c['regidor_emprendimiento_grado'] ?? null,
+        'regidor_derechos_grado' => $c['regidor_derechos_grado'] ?? null,
+        'regidor_comunicacion_grado' => $c['regidor_comunicacion_grado'] ?? null,
+        'responsable_entrega' => $c['responsable_entrega'] ?? null,
+        'telefono_responsable' => $c['telefono_responsable'] ?? null,
+        'fecha_generacion' => $c['fecha_generacion'] ?? null,
         'propuestas_pdf' => !empty($c['propuestas_pdf']) ? ('/static/' . ltrim(preg_replace('#^/*(static/)+#i', '', $c['propuestas_pdf']), '/')) : null
     ];
     foreach ($fotoFields as $field) {
@@ -172,7 +192,8 @@ function handle_admin_candidatos() {
 
     if ($method === 'GET') {
         $sede = isset($_GET['sede']) ? trim($_GET['sede']) : 'todos';
-        $candidatos = getAllCandidatos($sede);
+        $nivel = isset($_GET['nivel']) ? trim($_GET['nivel']) : null;
+        $candidatos = getAllCandidatos($sede, $nivel);
         $resultado = [];
         foreach ($candidatos as $c) {
             $resultado[] = _candidato_to_response($c);
@@ -197,14 +218,20 @@ function handle_admin_candidatos() {
 
         // Construir extras
         $extras = [];
-        $textFields = ['slogan', 'propuestas', 'alcalde', 'teniente', 
-                       'regidor_educacion', 'regidor_salud', 'regidor_derechos', 'sede', 'color'];
+        $textFields = [
+            'slogan', 'propuestas', 'alcalde', 'teniente', 
+            'regidor_educacion', 'regidor_salud', 'regidor_emprendimiento', 'regidor_derechos', 'regidor_comunicacion', 
+            'sede', 'nivel', 'color', 'token_registro', 'estado_registro', 'numero_lista',
+            'alcalde_grado', 'teniente_grado', 'regidor_educacion_grado', 'regidor_salud_grado',
+            'regidor_emprendimiento_grado', 'regidor_derechos_grado', 'regidor_comunicacion_grado'
+        ];
         foreach ($textFields as $tf) {
             if (isset($_POST[$tf])) $extras[$tf] = trim($_POST[$tf]);
         }
         // Fotos de miembros y documentos
         $fotoExtraFields = ['logo', 'alcalde_foto', 'teniente_foto', 
-                            'regidor_educacion_foto', 'regidor_salud_foto', 'regidor_derechos_foto', 'propuestas_pdf'];
+                            'regidor_educacion_foto', 'regidor_salud_foto', 'regidor_emprendimiento_foto',
+                            'regidor_derechos_foto', 'regidor_comunicacion_foto', 'propuestas_pdf'];
         foreach ($fotoExtraFields as $ff) {
             if (isset($fotos[$ff])) $extras[$ff] = $fotos[$ff];
         }
@@ -261,13 +288,19 @@ function handle_admin_candidato_manage($id) {
 
         // Construir extras
         $extras = [];
-        $textFields = ['slogan', 'propuestas', 'alcalde', 'teniente', 
-                       'regidor_educacion', 'regidor_salud', 'regidor_derechos', 'sede', 'color'];
+        $textFields = [
+            'slogan', 'propuestas', 'alcalde', 'teniente', 
+            'regidor_educacion', 'regidor_salud', 'regidor_emprendimiento', 'regidor_derechos', 'regidor_comunicacion', 
+            'sede', 'nivel', 'color', 'token_registro', 'estado_registro', 'numero_lista',
+            'alcalde_grado', 'teniente_grado', 'regidor_educacion_grado', 'regidor_salud_grado',
+            'regidor_emprendimiento_grado', 'regidor_derechos_grado', 'regidor_comunicacion_grado'
+        ];
         foreach ($textFields as $tf) {
             if (isset($_POST[$tf])) $extras[$tf] = trim($_POST[$tf]);
         }
         $fotoExtraFields = ['logo', 'alcalde_foto', 'teniente_foto', 
-                            'regidor_educacion_foto', 'regidor_salud_foto', 'regidor_derechos_foto', 'propuestas_pdf'];
+                            'regidor_educacion_foto', 'regidor_salud_foto', 'regidor_emprendimiento_foto',
+                            'regidor_derechos_foto', 'regidor_comunicacion_foto', 'propuestas_pdf'];
         foreach ($fotoExtraFields as $ff) {
             if (isset($fotos[$ff])) $extras[$ff] = $fotos[$ff];
         }
@@ -294,6 +327,79 @@ function handle_admin_candidato_manage($id) {
 
     http_response_code(405);
     echo json_encode(['error' => 'Método no permitido']);
+}
+
+function handle_admin_candidato_generar_token() {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        http_response_code(405);
+        echo json_encode(['error' => 'Método no permitido']);
+        return;
+    }
+
+    $input = json_decode(file_get_contents('php://input'), true);
+    if (!$input) $input = $_POST;
+
+    $responsable = !empty($input['responsable']) ? trim($input['responsable']) : (!empty($input['responsable_entrega']) ? trim($input['responsable_entrega']) : null);
+    $telefono = !empty($input['telefono']) ? trim($input['telefono']) : (!empty($input['telefono_responsable']) ? trim($input['telefono_responsable']) : null);
+    $sede = !empty($input['sede']) ? trim($input['sede']) : 'Sede Central';
+    $nivel = !empty($input['nivel']) ? trim($input['nivel']) : 'Primaria';
+    $nombre = !empty($input['nombre']) ? trim($input['nombre']) : ($responsable ? "Lista de {$responsable}" : 'Lista en Postulación');
+
+    $resultado = generarTokenPostulacion($sede, $nivel, $nombre, $responsable, $telefono);
+
+    $baseUrl = get_base_url();
+    $enlace = rtrim($baseUrl, '/') . '/postular/' . $resultado['token'];
+
+    echo json_encode([
+        'success' => true,
+        'message' => 'Enlace de postulación generado con éxito',
+        'candidato_id' => $resultado['id'],
+        'token' => $resultado['token'],
+        'enlace' => $enlace,
+        'sede' => $resultado['sede'],
+        'nivel' => $resultado['nivel'],
+        'nombre' => $resultado['nombre'],
+        'responsable_entrega' => $resultado['responsable_entrega'],
+        'telefono_responsable' => $resultado['telefono_responsable'],
+        'fecha_generacion' => $resultado['fecha_generacion']
+    ]);
+}
+
+function handle_admin_candidato_aprobar($id) {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        http_response_code(405);
+        echo json_encode(['error' => 'Método no permitido']);
+        return;
+    }
+
+    $id = (int)$id;
+    if (!candidatoExists($id)) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Candidato no encontrado']);
+        return;
+    }
+
+    $input = json_decode(file_get_contents('php://input'), true);
+    if (!$input) $input = $_POST;
+
+    $extras = [
+        'estado_registro' => 'aprobado'
+    ];
+    if (isset($input['numero_lista'])) {
+        $extras['numero_lista'] = (int)$input['numero_lista'];
+    }
+    if (!empty($input['color'])) {
+        $extras['color'] = trim($input['color']);
+    }
+
+    updateCandidato($id, null, null, null, $extras);
+
+    $c = getCandidatoById($id);
+    echo json_encode([
+        'success' => true,
+        'message' => 'Lista aprobada oficialmente para la Cédula de Votación',
+        'candidato' => _candidato_to_response($c)
+    ]);
 }
 
 // ---------- ASISTENTE ELECTORAL DE PDF LOCAL ----------
@@ -506,44 +612,70 @@ function handle_admin_reset($adminActual) {
     // 6. Ejecutar la acción solicitada por cada sede
     $mensajes = [];
 
+    $isMysql = (DB_DRIVER === 'mysql');
+    $separateDbs = defined('DB_SEPARATE_DBS') && DB_SEPARATE_DBS;
+
     foreach ($sedes as $s) {
         $sedeNombre = normalize_sede_name($s);
+        $sedePat = ($s === 'jerusalen') ? '%Jerusal%' : '%Central%';
 
         if ($action === 'urna') {
-            db_query('DELETE FROM votos', [], $s);
-            db_query('UPDATE voters SET ha_votado = 0, fecha_voto = NULL', [], $s);
-            db_query('VACUUM', [], $s);
+            if ($isMysql && !$separateDbs) {
+                db_query('DELETE FROM votos WHERE sede LIKE :pat OR sede IS NULL', ['pat' => $sedePat]);
+                db_query('UPDATE voters SET ha_votado = 0, fecha_voto = NULL WHERE sede LIKE :pat OR sede IS NULL', ['pat' => $sedePat]);
+            } else {
+                db_query('DELETE FROM votos', [], $s);
+                db_query('UPDATE voters SET ha_votado = 0, fecha_voto = NULL', [], $s);
+                if (DB_DRIVER !== 'mysql') { db_query('VACUUM', [], $s); }
+            }
             $mensajes[] = "Urna vaciada en {$sedeNombre}: votos en cero y padrón listo para votar.";
         }
 
         if ($action === 'candidatos') {
-            db_query('DELETE FROM votos', [], $s);
-            db_query('UPDATE voters SET ha_votado = 0, fecha_voto = NULL', [], $s);
-            db_query('DELETE FROM candidatos', [], $s);
+            if ($isMysql && !$separateDbs) {
+                db_query('DELETE FROM votos WHERE sede LIKE :pat OR sede IS NULL', ['pat' => $sedePat]);
+                db_query('UPDATE voters SET ha_votado = 0, fecha_voto = NULL WHERE sede LIKE :pat OR sede IS NULL', ['pat' => $sedePat]);
+                db_query('DELETE FROM candidatos WHERE sede LIKE :pat OR sede IS NULL', ['pat' => $sedePat]);
+            } else {
+                db_query('DELETE FROM votos', [], $s);
+                db_query('UPDATE voters SET ha_votado = 0, fecha_voto = NULL', [], $s);
+                db_query('DELETE FROM candidatos', [], $s);
+                if (DB_DRIVER !== 'mysql') { db_query('VACUUM', [], $s); }
+            }
             insertCandidato('Voto en Blanco', 'Opción cívica democrática', null, [
                 'sede' => $sedeNombre,
                 'color' => '#94A3B8'
             ]);
-            db_query('VACUUM', [], $s);
             $mensajes[] = "Candidatos eliminados en {$sedeNombre}. Se conservó únicamente el Voto en Blanco oficial.";
         }
 
         if ($action === 'padron') {
-            db_query('DELETE FROM votos', [], $s);
-            db_query('DELETE FROM voters', [], $s);
-            db_query('VACUUM', [], $s);
+            if ($isMysql && !$separateDbs) {
+                db_query('DELETE FROM votos WHERE sede LIKE :pat OR sede IS NULL', ['pat' => $sedePat]);
+                db_query('DELETE FROM voters WHERE sede LIKE :pat OR sede IS NULL', ['pat' => $sedePat]);
+            } else {
+                db_query('DELETE FROM votos', [], $s);
+                db_query('DELETE FROM voters', [], $s);
+                if (DB_DRIVER !== 'mysql') { db_query('VACUUM', [], $s); }
+            }
             $mensajes[] = "Padrón electoral vaciado por completo en {$sedeNombre}.";
         }
 
         if ($action === 'total') {
-            db_query('DELETE FROM votos', [], $s);
-            db_query('DELETE FROM voters', [], $s);
-            db_query('DELETE FROM candidatos', [], $s);
+            if ($isMysql && !$separateDbs) {
+                db_query('DELETE FROM votos WHERE sede LIKE :pat OR sede IS NULL', ['pat' => $sedePat]);
+                db_query('DELETE FROM voters WHERE sede LIKE :pat OR sede IS NULL', ['pat' => $sedePat]);
+                db_query('DELETE FROM candidatos WHERE sede LIKE :pat OR sede IS NULL', ['pat' => $sedePat]);
+            } else {
+                db_query('DELETE FROM votos', [], $s);
+                db_query('DELETE FROM voters', [], $s);
+                db_query('DELETE FROM candidatos', [], $s);
+                if (DB_DRIVER !== 'mysql') { db_query('VACUUM', [], $s); }
+            }
             insertCandidato('Voto en Blanco', 'Opción cívica democrática', null, [
                 'sede' => $sedeNombre,
                 'color' => '#94A3B8'
             ]);
-            db_query('VACUUM', [], $s);
             $mensajes[] = "Reset Total ejecutado en {$sedeNombre}: sistema limpio y virgen para la elección.";
         }
     }
@@ -556,4 +688,54 @@ function handle_admin_reset($adminActual) {
         'mensajes' => $mensajes,
         'message' => implode(' | ', $mensajes)
     ]);
+}
+
+// ---------- ESTADO Y MIGRACIÓN UNIVERSAL MYSQL ----------
+
+function handle_admin_db_status() {
+    $driver = DB_DRIVER;
+    $info = [
+        'driver' => $driver,
+        'separate_dbs' => defined('DB_SEPARATE_DBS') && DB_SEPARATE_DBS,
+        'mysql_configured' => [
+            'host' => DB_HOST,
+            'port' => DB_PORT,
+            'database' => DB_NAME,
+            'user' => DB_USER
+        ]
+    ];
+
+    try {
+        $votersCount = (int)db_query("SELECT COUNT(*) FROM voters")->fetchColumn();
+        $candidatesCount = (int)db_query("SELECT COUNT(*) FROM candidatos")->fetchColumn();
+        $votesCount = (int)db_query("SELECT COUNT(*) FROM votos")->fetchColumn();
+        $adminsCount = (int)db_query("SELECT COUNT(*) FROM admins")->fetchColumn();
+
+        $info['status'] = 'CONNECTED';
+        $info['counts'] = [
+            'voters' => $votersCount,
+            'candidates' => $candidatesCount,
+            'votes' => $votesCount,
+            'admins' => $adminsCount
+        ];
+    } catch (Exception $e) {
+        $info['status'] = 'ERROR';
+        $info['error'] = $e->getMessage();
+    }
+
+    echo json_encode($info);
+}
+
+function handle_admin_migrate_mysql() {
+    require_once __DIR__ . '/../migrate_sqlite_to_mysql.php';
+    try {
+        $resultado = ejecutarMigracionSqliteAMysql(['verbose' => false]);
+        echo json_encode($resultado);
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode([
+            'success' => false,
+            'error' => 'Error durante la migración a MySQL: ' . $e->getMessage()
+        ]);
+    }
 }
