@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import { motion } from 'framer-motion';
-import { ArrowRight, AlertCircle, CalendarClock, PauseCircle, Lock, Megaphone } from 'lucide-react';
+import { ArrowRight, AlertCircle, CalendarClock, PauseCircle, Lock } from 'lucide-react';
 import logoColegioAzul from '../assets/logo-colegio-azul.png';
 
 // Paleta de colores del Colegio Adventista Túpac Amaru
@@ -221,24 +221,11 @@ const Login = ({ setVoter }) => {
           </form>
 
           {/* Separador visual */}
-          <div className="flex items-center gap-3 my-5">
+          <div className="flex items-center gap-3 mt-5">
             <div className="flex-1 h-px" style={{ backgroundColor: '#E5E7EB' }}></div>
             <span className="text-xs font-medium" style={{ color: '#9CA3AF' }}>CATA · Juliaca · 2026</span>
             <div className="flex-1 h-px" style={{ backgroundColor: '#E5E7EB' }}></div>
           </div>
-
-          {/* Enlace al Portal Informativo de Campaña y Propuestas */}
-          <div className="text-center">
-            <button
-              type="button"
-              onClick={() => navigate('/portal')}
-              className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold text-blue-700 bg-blue-50/90 hover:bg-blue-100 hover:text-blue-900 border border-blue-200 shadow-2xs transition-all cursor-pointer"
-            >
-              <Megaphone size={15} className="text-blue-600 shrink-0" />
-              <span>Ver Listas y Propuestas (Portal Escolar)</span>
-            </button>
-          </div>
-
         </motion.div>
       </div>
 
