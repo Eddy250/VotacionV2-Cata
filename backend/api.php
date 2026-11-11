@@ -186,6 +186,16 @@ try {
             exit;
         }
 
+        if ($sub === 'jornadas') {
+            handle_admin_jornadas();
+            exit;
+        }
+
+        if ($sub === 'acta') {
+            handle_admin_acta();
+            exit;
+        }
+
         if ($sub === 'stats') {
             handle_admin_stats();
             exit;

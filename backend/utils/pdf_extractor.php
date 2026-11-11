@@ -130,12 +130,18 @@ class PdfExtractor {
             'propuestas' => '',
             'sede' => null,
             'sede_detectada' => false,
+            'nivel' => null,
             'alumnos_detectados' => [],
             'raw_preview' => mb_substr($rawText, 0, 500)
         ];
 
         if (trim($rawText) === '') {
             return $resultado;
+        }
+
+        // Detectar Nivel Educativo (Sección 1.5 MINEDU)
+        if (preg_match('/(?:1\.5\s*)?Nivel\s*educativo[:\s]+(Primaria|Secundaria)/iu', $rawText, $lvlM)) {
+            $resultado['nivel'] = ucfirst(strtolower(trim($lvlM[1])));
         }
 
         // 1. Detectar Nombre de la Lista (soporta misma línea O siguiente línea)
@@ -157,15 +163,37 @@ class PdfExtractor {
             $resultado['slogan'] = trim($qm[1]);
         }
 
-        // 3. Detectar Propuestas con Aislamiento Estricto de la Sección III
+        // 3. Detectar Propuestas con Soporte Oficial MINEDU (Sección III y IV) y Formatos Libres
         $propuestasList = [];
-        if (preg_match('/(?:III\.\s*PROPUESTAS[^\n]*|PROPUESTAS\s*PRINCIPALES[^\n]*)([\s\S]*?)(?:Colegio\s+Adventista|P[aá]gina|\Z)/iu', $rawText, $pm)) {
+
+        // Extraer Objetivo de la Sección III (Formato Oficial MINEDU)
+        if (preg_match('/(?:III\.\s*Objetivo[^\n]*)([\s\S]*?)(?:IV\.\s*Acciones|\Z)/iu', $rawText, $objM)) {
+            $objText = trim($objM[1]);
+            $objText = preg_replace('/[_\.]{3,}/', '', $objText); // limpiar guiones bajos y líneas de relleno
+            $objText = trim(preg_replace('/\s+/', ' ', $objText));
+            if (mb_strlen($objText) > 10 && !preg_match('/^(?:debe\s+atender|asuntos\s+p[uú]blicos)/iu', $objText)) {
+                $propuestasList[] = "🎯 OBJETIVO GENERAL: " . $objText;
+            }
+        }
+
+        // Extraer Acciones Generales de la Sección IV (Formato Oficial MINEDU)
+        if (preg_match('/(?:IV\.\s*Acciones\s*generales[^\n]*)([\s\S]*?)(?:V\.\s*Evaluaci[oó]n|VI\.\s*Firmas|\Z)/iu', $rawText, $actM)) {
+            $actBlock = trim($actM[1]);
+            $actLines = explode("\n", $actBlock);
+            foreach ($actLines as $al) {
+                $al = trim($al);
+                $al = preg_replace('/^[•\-\*\d+\.\)]\s*/u', '', $al);
+                if (mb_strlen($al) > 10 && !preg_match('/^(?:Acciones|Actividades|Responsable|Cronograma|MINISTERIO|M|A|J|S|O|N|D|generales)\b/iu', $al)) {
+                    $propuestasList[] = "• " . $al;
+                }
+            }
+        }
+
+        // Fallback a Secciones III clásicas de formato abierto
+        if (empty($propuestasList) && preg_match('/(?:III\.\s*PROPUESTAS[^\n]*|PROPUESTAS\s*PRINCIPALES[^\n]*)([\s\S]*?)(?:Colegio\s+Adventista|P[aá]gina|\Z)/iu', $rawText, $pm)) {
             $bloquePropuestas = trim($pm[1]);
             $bloquePropuestas = str_replace(["\r\n", "\r"], "\n", $bloquePropuestas);
-
-            // Dividir por párrafos o viñetas
             $parrafos = preg_split('/\n{2,}|\n(?=[•\-\*]|\b[A-ZÁÉÍÓÚ][a-zñáéíóú\s]{3,40}:)/u', $bloquePropuestas);
-
             foreach ($parrafos as $p) {
                 $p = trim(preg_replace('/\s+/', ' ', $p));
                 $p = preg_replace('/^[•\-\*]\s*/u', '', $p);
@@ -194,14 +222,16 @@ class PdfExtractor {
             $resultado['propuestas'] = implode("\n", array_slice($propuestasList, 0, 10));
         }
 
-        // 4. Detección Directa de Cargos (Tablas y Ficticios)
+        // 4. Detección Directa de Cargos Oficiales MINEDU ("Somos Pares") y Clásicos
         $detectadosDirectos = [];
         $rolesPatterns = [
-            'alcalde' => '/(?:alcalde(?:sa)?(?:\(sa\))?)[\s:\|\t]+([A-Za-zÁ-Úá-úñÑ\s,\.]+?)(?:\s*[:\|\t\r\n]+\s*(\d{7,8})|\r?\n|$)/iu',
-            'teniente' => '/(?:teniente\s*alcalde(?:sa)?(?:\(sa\))?)[\s:\|\t]+([A-Za-zÁ-Úá-úñÑ\s,\.]+?)(?:\s*[:\|\t\r\n]+\s*(\d{7,8})|\r?\n|$)/iu',
-            'regidor_educacion' => '/(?:regidor(?:a)?(?:\(a\))?\s*(?:de\s*)?educaci[oó]n)[\s:\|\t]+([A-Za-zÁ-Úá-úñÑ\s,\.]+?)(?:\s*[:\|\t\r\n]+\s*(\d{7,8})|\r?\n|$)/iu',
-            'regidor_salud' => '/(?:regidor(?:a)?(?:\(a\))?\s*(?:de\s*)?salud)[\s:\|\t]+([A-Za-zÁ-Úá-úñÑ\s,\.]+?)(?:\s*[:\|\t\r\n]+\s*(\d{7,8})|\r?\n|$)/iu',
-            'regidor_derechos' => '/(?:regidor(?:a)?(?:\(a\))?\s*(?:de\s*)?derechos)[\s:\|\t]+([A-Za-zÁ-Úá-úñÑ\s,\.]+?)(?:\s*[:\|\t\r\n]+\s*(\d{7,8})|\r?\n|$)/iu',
+            'alcalde' => '/(?:(?:2\.1\s*)?alcalde(?:sa)?(?:\(sa\))?)[\s:\|\t]+([A-Za-zÁ-Úá-úñÑ\s,\.]+?)(?:\s*[:\|\t\r\n]+\s*(\d{7,8})|\r?\n|$)/iu',
+            'teniente' => '/(?:(?:2\.2\s*)?teniente\s*alcalde(?:sa)?(?:\(sa\))?)[\s:\|\t]+([A-Za-zÁ-Úá-úñÑ\s,\.]+?)(?:\s*[:\|\t\r\n]+\s*(\d{7,8})|\r?\n|$)/iu',
+            'regidor_educacion' => '/(?:(?:2\.3\s*)?regidor(?:a)?(?:\(a\))?\s*(?:de\s*)?educaci[oó]n)[\s:\|\t]+([A-Za-zÁ-Úá-úñÑ\s,\.]+?)(?:\s*[:\|\t\r\n]+\s*(\d{7,8})|\r?\n|$)/iu',
+            'regidor_derechos' => '/(?:(?:2\.4\s*)?regidor(?:a)?(?:\(a\))?\s*(?:de\s*)?derecho[s]?)[\s:\|\t]+([A-Za-zÁ-Úá-úñÑ\s,\.]+?)(?:\s*[:\|\t\r\n]+\s*(\d{7,8})|\r?\n|$)/iu',
+            'regidor_salud' => '/(?:(?:2\.5\s*)?regidor(?:a)?(?:\(a\))?\s*(?:de\s*)?(?:bienestar|salud))[\s:\|\t]+([A-Za-zÁ-Úá-úñÑ\s,\.]+?)(?:\s*[:\|\t\r\n]+\s*(\d{7,8})|\r?\n|$)/iu',
+            'regidor_emprendimiento' => '/(?:regidor(?:a)?(?:\(a\))?\s*(?:de\s*)?emprendimiento)[\s:\|\t]+([A-Za-zÁ-Úá-úñÑ\s,\.]+?)(?:\s*[:\|\t\r\n]+\s*(\d{7,8})|\r?\n|$)/iu',
+            'regidor_comunicacion' => '/(?:regidor(?:a)?(?:\(a\))?\s*(?:de\s*)?comunicaci[oó]n)[\s:\|\t]+([A-Za-zÁ-Úá-úñÑ\s,\.]+?)(?:\s*[:\|\t\r\n]+\s*(\d{7,8})|\r?\n|$)/iu',
         ];
 
         foreach ($rolesPatterns as $roleKey => $pattern) {

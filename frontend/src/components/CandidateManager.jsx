@@ -5,7 +5,7 @@ import {
   PlusCircle, Image as ImageIcon, Edit3, Trash2, X, Users, Megaphone,
   FileText, Camera, Wand2, FileCode, CheckCircle2, Search, Eye, Download,
   ExternalLink, Sparkles, AlertCircle, Share2, Copy, Check, ShieldCheck, Link as LinkIcon, UserCheck,
-  ChevronDown, GraduationCap
+  ChevronDown, GraduationCap, Globe2, Lock
 } from 'lucide-react';
 import { extractDominantColor } from '../utils/colorExtractor';
 
@@ -13,13 +13,13 @@ const BLUE = '#1B3A8C';
 const BLUE_LIGHT = '#EEF4FF';
 
 const CARGOS = [
-  { key: 'alcalde', label: 'Alcalde ó Alcaldesa', desc: 'Líder del Municipio Escolar' },
-  { key: 'teniente', label: 'Teniente Alcalde', desc: 'Segunda autoridad del Municipio' },
-  { key: 'regidor_educacion', label: 'Regidor(a) de Educación, Cultura y Deporte', desc: 'Coordinación académica, deportiva y recreativa' },
-  { key: 'regidor_salud', label: 'Regidor(a) de Salud y Ambiente', desc: 'Higiene, áreas verdes y primeros auxilios' },
-  { key: 'regidor_emprendimiento', label: 'Regidor(a) de Emprendimiento y Actividades Productivas', desc: 'Proyectos estudiantiles y actividades pro-fondos' },
-  { key: 'regidor_derechos', label: 'Regidor(a) de Derechos del Niño, Niña y Adolescente', desc: 'Convivencia escolar, prevención y tutoría' },
-  { key: 'regidor_comunicacion', label: 'Regidor(a) de Comunicación y Tecnologías', desc: 'Periódico mural, redes escolares y tecnología' },
+  { key: 'alcalde', label: '2.1 Alcalde ó Alcaldesa', desc: 'Líder del Municipio Escolar' },
+  { key: 'teniente', label: '2.2 Teniente Alcalde', desc: 'Segunda autoridad del Municipio' },
+  { key: 'regidor_educacion', label: '2.3 Regidor(a) de Educación', desc: 'Coordinación académica, deportiva y recreativa' },
+  { key: 'regidor_derechos', label: '2.4 Regidor(a) de Derecho', desc: 'Convivencia escolar, derechos y tutoría' },
+  { key: 'regidor_salud', label: '2.5 Regidor(a) de Bienestar', desc: 'Bienestar estudiantil, higiene y salud' },
+  { key: 'regidor_emprendimiento', label: 'Regidor(a) de Emprendimiento (Opcional)', desc: 'Proyectos estudiantiles y actividades pro-fondos' },
+  { key: 'regidor_comunicacion', label: 'Regidor(a) de Comunicación (Opcional)', desc: 'Periódico mural, redes escolares y tecnología' },
 ];
 
 const GRADOS_SECUNDARIA = [
@@ -539,6 +539,16 @@ const CandidateManager = () => {
           <p className="text-slate-500 text-xs mt-0.5">Gestiona las listas electorales, directivas y planes de trabajo en PDF</p>
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
+          <a
+            href="/static/docs/Modelo_Plan_de_Trabajo_Municipio_Escolar_MINEDU.pdf"
+            target="_blank"
+            rel="noopener noreferrer"
+            download="Modelo_Plan_de_Trabajo_Municipio_Escolar_MINEDU.pdf"
+            className="flex items-center gap-2 text-blue-900 bg-blue-50 hover:bg-blue-100 font-extrabold py-2.5 px-3.5 rounded-2xl shadow-xs transition-all text-xs cursor-pointer border border-blue-200"
+            title="Descargar la plantilla oficial del MINEDU (PDF) para imprimir o entregar a los candidatos"
+          >
+            <Download size={15} /> Plantilla MINEDU (PDF)
+          </a>
           <button
             onClick={() => {
               setGeneratedLink(null);
@@ -612,6 +622,8 @@ const CandidateManager = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
         {candidatos
           .filter(c => {
+            const isSystem = /blanco/i.test(c.nombre) || /nulo/i.test(c.nombre) || (c.sede && c.sede.includes('Universal'));
+            if (isSystem) return true;
             if (filterSede === 'todos') return true;
             if (filterSede === 'Central - Primaria') {
               const isCentral = !c.sede || c.sede.includes('Central') || c.sede.includes('Principal');
@@ -625,191 +637,249 @@ const CandidateManager = () => {
             if (filterSede === 'Sede Jerusalén') return c.sede && c.sede.includes('Jerusal');
             return true;
           })
-          .map(c => (
-            <div key={c.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col group hover:shadow-md transition-shadow">
-              <div className="h-44 bg-slate-100 relative">
-                {c.logo ? (
-                  <div className="w-full h-full flex items-center justify-center p-5 bg-slate-50">
-                    <img src={getAssetUrl(c.logo)} className="max-h-full max-w-full object-contain" alt="logo" />
-                  </div>
-                ) : c.foto ? (
-                  <img src={getAssetUrl(c.foto)} className="w-full h-full object-cover" alt="foto" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={40} /></div>
-                )}
-                {c.slogan && (
-                  <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-sm px-3 py-1.5">
-                    <p className="text-white text-xs font-semibold italic truncate">"{c.slogan}"</p>
-                  </div>
-                )}
-                {c.propuestas_pdf && (
-                  <div className="absolute top-2 right-2 bg-red-600/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow">
-                    <FileCode size={11} /> PDF Adjunto
-                  </div>
-                )}
-                <div className="absolute top-2 left-2 flex flex-wrap items-center gap-1.5">
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/90 text-slate-700 shadow-sm">
-                    {c.sede === 'Sede Jerusalén' ? '⛪ Jerusalén' : '🏛️ Central'}
-                  </span>
-                  {(!c.sede || !c.sede.includes('Jerusal')) && (
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm ${
-                      c.nivel === 'Primaria' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
-                      c.nivel === 'Secundaria' ? 'bg-indigo-100 text-indigo-900 border border-indigo-300' :
-                      'bg-slate-100 text-slate-700 border border-slate-300'
-                    }`}>
-                      {c.nivel || 'General'}
-                    </span>
+          .map(c => {
+            const isSystem = /blanco/i.test(c.nombre) || /nulo/i.test(c.nombre) || (c.sede && c.sede.includes('Universal'));
+            return (
+              <div key={c.id} className={`bg-white rounded-2xl shadow-sm border ${isSystem ? 'border-blue-200 ring-1 ring-blue-100' : 'border-slate-100'} overflow-hidden flex flex-col group hover:shadow-md transition-shadow`}>
+                <div className="h-44 bg-slate-100 relative">
+                  {c.logo ? (
+                    <div className="w-full h-full flex items-center justify-center p-5 bg-slate-50">
+                      <img src={getAssetUrl(c.logo)} className="max-h-full max-w-full object-contain" alt="logo" />
+                    </div>
+                  ) : c.foto ? (
+                    <img src={getAssetUrl(c.foto)} className="w-full h-full object-cover" alt="foto" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={40} /></div>
                   )}
-                  {c.color && (
-                    <span
-                      className="w-3.5 h-3.5 rounded-full border border-white shadow-sm flex-shrink-0"
-                      style={{ backgroundColor: c.color }}
-                      title={`Color de la lista: ${c.color}`}
-                    />
+                  {c.slogan && (
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-sm px-3 py-1.5">
+                      <p className="text-white text-xs font-semibold italic truncate">"{c.slogan}"</p>
+                    </div>
                   )}
-                </div>
-              </div>
-              <div className="p-5 flex-grow">
-                <div className="flex items-start justify-between gap-2">
-                  <h4 className="font-bold text-lg text-slate-800 leading-tight">{c.nombre}</h4>
-                  <div>
-                    {c.estado_registro === 'aprobado' || !c.estado_registro ? (
-                      <span className="px-2 py-0.5 rounded-full text-[9.5px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
-                        Aprobado
-                      </span>
-                    ) : c.estado_registro === 'en_revision' ? (
-                      <span className="px-2 py-0.5 rounded-full text-[9.5px] font-black bg-blue-100 text-blue-800 border border-blue-300 animate-pulse">
-                        En Revisión
-                      </span>
+                  {c.propuestas_pdf && (
+                    <div className="absolute top-2 right-2 bg-red-600/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow">
+                      <FileCode size={11} /> PDF Adjunto
+                    </div>
+                  )}
+                  <div className="absolute top-2 left-2 flex flex-wrap items-center gap-1.5">
+                    {isSystem ? (
+                      <>
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-900 text-white shadow-md flex items-center gap-1 border border-blue-700">
+                          <Globe2 size={11} className="text-cyan-300" /> Universal (Todas las Urnas)
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300">
+                          ⚙️ Predeterminado
+                        </span>
+                      </>
                     ) : (
-                      <span className="px-2 py-0.5 rounded-full text-[9.5px] font-black bg-amber-100 text-amber-800 border border-amber-300">
-                        Borrador
-                      </span>
+                      <>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/90 text-slate-700 shadow-sm">
+                          {c.sede === 'Sede Jerusalén' ? '⛪ Jerusalén' : '🏛️ Central'}
+                        </span>
+                        {(!c.sede || !c.sede.includes('Jerusal')) && (
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm ${
+                            c.nivel === 'Primaria' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
+                            c.nivel === 'Secundaria' ? 'bg-indigo-100 text-indigo-900 border border-indigo-300' :
+                            'bg-slate-100 text-slate-700 border border-slate-300'
+                          }`}>
+                            {c.nivel || 'General'}
+                          </span>
+                        )}
+                      </>
+                    )}
+                    {c.color && (
+                      <span
+                        className="w-3.5 h-3.5 rounded-full border border-white shadow-sm flex-shrink-0"
+                        style={{ backgroundColor: c.color }}
+                        title={`Color de la lista: ${c.color}`}
+                      />
                     )}
                   </div>
                 </div>
-                <p className="text-slate-500 text-sm mt-1 line-clamp-2">{c.descripcion}</p>
-
-                {/* Resumen de integrantes y directiva */}
-                {c.responsable_entrega && (
-                  <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-900 bg-amber-50 px-2.5 py-1 rounded-xl border border-amber-200">
-                    <UserCheck size={13} className="text-amber-700 shrink-0" />
-                    <span className="truncate">
-                      Entregado a: <strong>{c.responsable_entrega}</strong>
-                      {c.telefono_responsable && <span className="text-[11px] text-amber-700 ml-1">({c.telefono_responsable})</span>}
-                    </span>
-                  </div>
-                )}
-                {(() => {
-                  const directiva = [
-                    { cargo: 'Alcalde', nombre: c.alcalde, grado: c.alcalde_grado },
-                    { cargo: 'Teniente', nombre: c.teniente, grado: c.teniente_grado },
-                    { cargo: 'Reg. Educación', nombre: c.regidor_educacion, grado: c.regidor_educacion_grado },
-                    { cargo: 'Reg. Salud', nombre: c.regidor_salud, grado: c.regidor_salud_grado },
-                    { cargo: 'Reg. Emprendimiento', nombre: c.regidor_emprendimiento, grado: c.regidor_emprendimiento_grado },
-                    { cargo: 'Reg. Derechos', nombre: c.regidor_derechos, grado: c.regidor_derechos_grado },
-                    { cargo: 'Reg. Comunicación', nombre: c.regidor_comunicacion, grado: c.regidor_comunicacion_grado },
-                  ];
-                  const filledCount = directiva.filter(d => d.nombre).length;
-                  return (
-                    <div className="mt-2.5 space-y-1.5">
-                      <div className="flex items-center justify-between text-xs bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-100">
-                        <span className="flex items-center gap-1 font-bold text-slate-700">
-                          <Users size={13} className="text-blue-600" />
-                          {filledCount > 0 ? `${filledCount} de 7 directivos` : 'Sin directivos'}
+                <div className="p-5 flex-grow">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <h4 className="font-bold text-lg text-slate-800 leading-tight">{c.nombre}</h4>
+                      {isSystem && (
+                        <span className="inline-block mt-0.5 text-[10px] font-extrabold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                          ⚙️ Opción Oficial del Sistema
                         </span>
-                        {c.propuestas && (
-                          <span className="flex items-center gap-1 font-bold text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
-                            <FileText size={11} /> Plan redactado
+                      )}
+                    </div>
+                    <div>
+                      {isSystem ? (
+                        <span className="px-2 py-0.5 rounded-full text-[9.5px] font-black bg-blue-100 text-blue-900 border border-blue-300">
+                          Oficial
+                        </span>
+                      ) : c.estado_registro === 'aprobado' || !c.estado_registro ? (
+                        <span className="px-2 py-0.5 rounded-full text-[9.5px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                          Aprobado
+                        </span>
+                      ) : c.estado_registro === 'en_revision' ? (
+                        <span className="px-2 py-0.5 rounded-full text-[9.5px] font-black bg-blue-100 text-blue-800 border border-blue-300 animate-pulse">
+                          En Revisión
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full text-[9.5px] font-black bg-amber-100 text-amber-800 border border-amber-300">
+                          Borrador
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-slate-500 text-sm mt-1 line-clamp-2">{c.descripcion}</p>
+
+                  {/* Banner Explicativo si es Opción del Sistema */}
+                  {isSystem && (
+                    <div className="mt-3 p-2.5 rounded-xl bg-blue-50/80 border border-blue-200 text-blue-950 text-xs">
+                      <div className="flex items-center gap-1.5 font-black text-[11px] text-blue-900 uppercase tracking-wide">
+                        <ShieldCheck size={13} className="text-blue-600 shrink-0" />
+                        <span>Habilitado en Todas las Cédulas</span>
+                      </div>
+                      <p className="text-[11px] text-blue-800 font-medium mt-1 leading-snug">
+                        Esta opción aparece de forma automática y obligatoria en todas las urnas (Sede Central y Jerusalén) según normativa ONPE.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Resumen de integrantes y directiva (solo para listas de candidatos) */}
+                  {!isSystem && c.responsable_entrega && (
+                    <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-900 bg-amber-50 px-2.5 py-1 rounded-xl border border-amber-200">
+                      <UserCheck size={13} className="text-amber-700 shrink-0" />
+                      <span className="truncate">
+                        Entregado a: <strong>{c.responsable_entrega}</strong>
+                        {c.telefono_responsable && <span className="text-[11px] text-amber-700 ml-1">({c.telefono_responsable})</span>}
+                      </span>
+                    </div>
+                  )}
+                  {isSystem ? (
+                    <div className="mt-3 flex items-center justify-between text-xs bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-100 text-slate-600 font-bold">
+                      <span className="flex items-center gap-1.5 text-[11px] text-slate-700">
+                        <CheckCircle2 size={13} className="text-emerald-600" />
+                        Cédula Oficial CATA
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase">Sin personeros</span>
+                    </div>
+                  ) : (() => {
+                    const directiva = [
+                      { cargo: 'Alcalde', nombre: c.alcalde, grado: c.alcalde_grado },
+                      { cargo: 'Teniente', nombre: c.teniente, grado: c.teniente_grado },
+                      { cargo: 'Reg. Educación', nombre: c.regidor_educacion, grado: c.regidor_educacion_grado },
+                      { cargo: 'Reg. Salud', nombre: c.regidor_salud, grado: c.regidor_salud_grado },
+                      { cargo: 'Reg. Emprendimiento', nombre: c.regidor_emprendimiento, grado: c.regidor_emprendimiento_grado },
+                      { cargo: 'Reg. Derechos', nombre: c.regidor_derechos, grado: c.regidor_derechos_grado },
+                      { cargo: 'Reg. Comunicación', nombre: c.regidor_comunicacion, grado: c.regidor_comunicacion_grado },
+                    ];
+                    const filledCount = directiva.filter(d => d.nombre).length;
+                    return (
+                      <div className="mt-2.5 space-y-1.5">
+                        <div className="flex items-center justify-between text-xs bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-100">
+                          <span className="flex items-center gap-1 font-bold text-slate-700">
+                            <Users size={13} className="text-blue-600" />
+                            {filledCount > 0 ? `${filledCount} de 7 directivos` : 'Sin directivos'}
                           </span>
+                          {c.propuestas && (
+                            <span className="flex items-center gap-1 font-bold text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                              <FileText size={11} /> Plan redactado
+                            </span>
+                          )}
+                        </div>
+
+                        {c.alcalde && (
+                          <div className="flex items-center gap-1.5 text-xs text-slate-700 truncate">
+                            <span className="font-black text-blue-900 bg-blue-50 px-1.5 py-0.5 rounded text-[10px]">Alcalde</span>
+                            <span className="font-bold truncate">{c.alcalde}</span>
+                            {c.alcalde_grado && <span className="text-[10px] text-slate-400 font-bold">({c.alcalde_grado})</span>}
+                          </div>
+                        )}
+                        {c.teniente && (
+                          <div className="flex items-center gap-1.5 text-xs text-slate-600 truncate">
+                            <span className="font-black text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded text-[10px]">Teniente</span>
+                            <span className="truncate">{c.teniente}</span>
+                            {c.teniente_grado && <span className="text-[10px] text-slate-400 font-bold">({c.teniente_grado})</span>}
+                          </div>
                         )}
                       </div>
+                    );
+                  })()}
 
-                      {c.alcalde && (
-                        <div className="flex items-center gap-1.5 text-xs text-slate-700 truncate">
-                          <span className="font-black text-blue-900 bg-blue-50 px-1.5 py-0.5 rounded text-[10px]">Alcalde</span>
-                          <span className="font-bold truncate">{c.alcalde}</span>
-                          {c.alcalde_grado && <span className="text-[10px] text-slate-400 font-bold">({c.alcalde_grado})</span>}
-                        </div>
-                      )}
-                      {c.teniente && (
-                        <div className="flex items-center gap-1.5 text-xs text-slate-600 truncate">
-                          <span className="font-black text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded text-[10px]">Teniente</span>
-                          <span className="truncate">{c.teniente}</span>
-                          {c.teniente_grado && <span className="text-[10px] text-slate-400 font-bold">({c.teniente_grado})</span>}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
+                  {/* Acciones de Token / WhatsApp */}
+                  <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+                    {!isSystem && c.token_registro ? (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(`${window.location.origin}/postular/${c.token_registro}`)}
+                          className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer transition-colors"
+                          title="Copiar enlace para enviar por WhatsApp al candidato"
+                        >
+                          <Copy size={12} /> Copiar Link
+                        </button>
+                        <a
+                          href={(() => {
+                            const fullUrl = `${window.location.origin}/postular/${c.token_registro}`;
+                            const msg = `¡Hola${c.responsable_entrega ? ' ' + c.responsable_entrega : ''}! Te compartimos el enlace oficial para inscribir tu lista electoral (Municipio Escolar CATA 2026):\n\n🔗 ${fullUrl}\n\nPuedes ingresar desde tu celular o computadora. ¡Muchos éxitos!`;
+                            return c.telefono_responsable
+                              ? `https://wa.me/51${c.telefono_responsable.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`
+                              : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+                          })()}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] font-black text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded-lg border border-emerald-200 flex items-center gap-1 transition-colors"
+                          title="Abrir chat de WhatsApp con el mensaje y enlace listos"
+                        >
+                          <Share2 size={11} /> WhatsApp
+                        </a>
+                      </div>
+                    ) : <div />}
 
-                {/* Acciones de Token / WhatsApp */}
-                <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
-                  {c.token_registro ? (
-                    <div className="flex items-center gap-2">
+                    {!isSystem && c.estado_registro !== 'aprobado' && (
                       <button
                         type="button"
-                        onClick={() => copyToClipboard(`${window.location.origin}/postular/${c.token_registro}`)}
-                        className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer transition-colors"
-                        title="Copiar enlace para enviar por WhatsApp al candidato"
+                        onClick={() => handleApproveCandidate(c.id)}
+                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] rounded-lg shadow-xs transition-colors flex items-center gap-1 cursor-pointer"
+                        title="Aprobar para que aparezca en la cédula de votación"
                       >
-                        <Copy size={12} /> Copiar Link
+                        <ShieldCheck size={12} /> Aprobar Lista
                       </button>
-                      <a
-                        href={(() => {
-                          const fullUrl = `${window.location.origin}/postular/${c.token_registro}`;
-                          const msg = `¡Hola${c.responsable_entrega ? ' ' + c.responsable_entrega : ''}! Te compartimos el enlace oficial para inscribir tu lista electoral (Municipio Escolar CATA 2026):\n\n🔗 ${fullUrl}\n\nPuedes ingresar desde tu celular o computadora. ¡Muchos éxitos!`;
-                          return c.telefono_responsable
-                            ? `https://wa.me/51${c.telefono_responsable.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`
-                            : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
-                        })()}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[11px] font-black text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded-lg border border-emerald-200 flex items-center gap-1 transition-colors"
-                        title="Abrir chat de WhatsApp con el mensaje y enlace listos"
-                      >
-                        <Share2 size={11} /> WhatsApp
-                      </a>
-                    </div>
-                  ) : <div />}
-
-                  {c.estado_registro !== 'aprobado' && (
+                    )}
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 border-t border-slate-100 divide-x divide-slate-100">
+                  <button
+                    onClick={() => openReview(c)}
+                    className="py-3 px-2 text-center font-bold text-blue-700 hover:bg-blue-50 flex items-center justify-center gap-1.5 transition-colors text-xs cursor-pointer"
+                    title="Ver ficha completa de inscripción y directiva"
+                  >
+                    <Eye size={14} /> Ficha
+                  </button>
+                  <button
+                    onClick={() => openEdit(c)}
+                    className="py-3 px-2 text-center font-bold text-slate-500 hover:bg-slate-50 flex items-center justify-center gap-1.5 transition-colors text-xs cursor-pointer"
+                    onMouseEnter={e => e.currentTarget.style.color = BLUE}
+                    onMouseLeave={e => e.currentTarget.style.color = '#64748B'}
+                  >
+                    <Edit3 size={14} /> Editar
+                  </button>
+                  {isSystem ? (
                     <button
-                      type="button"
-                      onClick={() => handleApproveCandidate(c.id)}
-                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] rounded-lg shadow-xs transition-colors flex items-center gap-1 cursor-pointer"
-                      title="Aprobar para que aparezca en la cédula de votación"
+                      disabled
+                      className="py-3 px-2 text-center font-bold text-slate-400 bg-slate-50/70 flex items-center justify-center gap-1.5 text-xs cursor-not-allowed select-none"
+                      title="Esta opción es obligatoria por ley electoral y no se puede eliminar."
                     >
-                      <ShieldCheck size={12} /> Aprobar Lista
+                      <Lock size={13} className="text-slate-400" /> Obligatorio
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleDelete(c.id)}
+                      className="py-3 px-2 text-center font-bold text-red-400 hover:text-red-600 hover:bg-red-50 flex items-center justify-center gap-1.5 transition-colors text-xs cursor-pointer"
+                    >
+                      <Trash2 size={14} /> Eliminar
                     </button>
                   )}
                 </div>
               </div>
-              <div className="grid grid-cols-3 border-t border-slate-100 divide-x divide-slate-100">
-                <button
-                  onClick={() => openReview(c)}
-                  className="py-3 px-2 text-center font-bold text-blue-700 hover:bg-blue-50 flex items-center justify-center gap-1.5 transition-colors text-xs cursor-pointer"
-                  title="Ver ficha completa de inscripción y directiva"
-                >
-                  <Eye size={14} /> Ficha
-                </button>
-                <button
-                  onClick={() => openEdit(c)}
-                  className="py-3 px-2 text-center font-bold text-slate-500 hover:bg-slate-50 flex items-center justify-center gap-1.5 transition-colors text-xs cursor-pointer"
-                  onMouseEnter={e => e.currentTarget.style.color = BLUE}
-                  onMouseLeave={e => e.currentTarget.style.color = '#64748B'}
-                >
-                  <Edit3 size={14} /> Editar
-                </button>
-                <button
-                  onClick={() => handleDelete(c.id)}
-                  className="py-3 px-2 text-center font-bold text-red-400 hover:text-red-600 hover:bg-red-50 flex items-center justify-center gap-1.5 transition-colors text-xs cursor-pointer"
-                >
-                  <Trash2 size={14} /> Eliminar
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
       </div>
 
       {/* Modal Principal de Edición / Creación */}
@@ -1460,9 +1530,15 @@ const CandidateManager = () => {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-lg font-black text-slate-900 truncate">{reviewCandidate.nombre}</h3>
-                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-white text-slate-700 shadow-xs border">
-                        {reviewCandidate.sede?.includes('Jerusal') ? '⛪ Sede Jerusalén' : '🏛️ Sede Central'} - {reviewCandidate.nivel || 'General'}
-                      </span>
+                      {/blanco/i.test(reviewCandidate.nombre) || /nulo/i.test(reviewCandidate.nombre) || reviewCandidate.sede?.includes('Universal') ? (
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-blue-900 text-white shadow-xs border border-blue-700 flex items-center gap-1">
+                          <Globe2 size={12} className="text-cyan-300" /> Universal · Todas las Urnas
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-white text-slate-700 shadow-xs border">
+                          {reviewCandidate.sede?.includes('Jerusal') ? '⛪ Sede Jerusalén' : '🏛️ Sede Central'} - {reviewCandidate.nivel || 'General'}
+                        </span>
+                      )}
                       {reviewCandidate.estado_registro === 'aprobado' ? (
                         <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
                           <CheckCircle2 size={12} /> Aprobado Oficial

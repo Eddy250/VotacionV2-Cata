@@ -36,11 +36,11 @@ class StatsManager {
         // Filtro por Nivel Escolar en Sede Central (Primaria vs Secundaria)
         if ($sedeSlug === 'central' && $nivel && $nivel !== 'todos') {
             if (strtolower($nivel) === 'secundaria') {
-                $whereVoters[] = "(nivel = 'Secundaria' OR (grado LIKE '%SEC%' OR ngs LIKE '%SEC%' OR ngs LIKE '%A_O%'))";
-                $whereVotos[] = "(nivel = 'Secundaria' OR candidato_id IN (SELECT id FROM candidatos WHERE LOWER(nivel) = 'secundaria'))";
+                $whereVoters[] = "(LOWER(nivel) = 'secundaria' OR ((nivel IS NULL OR nivel = '') AND (grado LIKE '%SEC%' OR ngs LIKE '%SEC%' OR ngs LIKE '%AÑO%' OR ngs LIKE '%ANO%')))";
+                $whereVotos[] = "(LOWER(nivel) = 'secundaria' OR candidato_id IN (SELECT id FROM candidatos WHERE LOWER(nivel) = 'secundaria'))";
             } elseif (strtolower($nivel) === 'primaria') {
-                $whereVoters[] = "(nivel = 'Primaria' OR (grado NOT LIKE '%SEC%' AND ngs NOT LIKE '%SEC%' AND ngs NOT LIKE '%A_O%'))";
-                $whereVotos[] = "(nivel = 'Primaria' OR candidato_id IN (SELECT id FROM candidatos WHERE LOWER(nivel) = 'primaria'))";
+                $whereVoters[] = "(LOWER(nivel) = 'primaria' OR ((nivel IS NULL OR nivel = '') AND (grado NOT LIKE '%SEC%' AND ngs NOT LIKE '%SEC%' AND ngs NOT LIKE '%AÑO%' AND ngs NOT LIKE '%ANO%')))";
+                $whereVotos[] = "(LOWER(nivel) = 'primaria' OR candidato_id IN (SELECT id FROM candidatos WHERE LOWER(nivel) = 'primaria'))";
             }
         }
 
@@ -66,7 +66,7 @@ class StatsManager {
             if ($sedeSlug === 'central' && $nivel && $nivel !== 'todos') {
                 $candidatos = db_query(
                     "SELECT id, nombre, foto, logo, color, sede, nivel FROM candidatos 
-                     WHERE (sede LIKE :sede_pat OR sede IS NULL)
+                     WHERE (sede LIKE :sede_pat OR sede IS NULL OR LOWER(nombre) LIKE '%blanco%' OR LOWER(sede) LIKE '%universal%')
                        AND (LOWER(nivel) = LOWER(:nivel) OR LOWER(nivel) = 'general' OR nivel IS NULL OR nivel = '')
                      ORDER BY id ASC",
                     ['sede_pat' => $sedePattern, 'nivel' => $nivel]
@@ -74,7 +74,7 @@ class StatsManager {
             } else {
                 $candidatos = db_query(
                     "SELECT id, nombre, foto, logo, color, sede, nivel FROM candidatos 
-                     WHERE (sede LIKE :sede_pat OR sede IS NULL)
+                     WHERE (sede LIKE :sede_pat OR sede IS NULL OR LOWER(nombre) LIKE '%blanco%' OR LOWER(sede) LIKE '%universal%')
                      ORDER BY id ASC",
                     ['sede_pat' => $sedePattern]
                 )->fetchAll();
@@ -83,7 +83,7 @@ class StatsManager {
             if ($sedeSlug === 'central' && $nivel && $nivel !== 'todos') {
                 $candidatos = db_query(
                     "SELECT id, nombre, foto, logo, color, sede, nivel FROM candidatos 
-                     WHERE (LOWER(nivel) = LOWER(:nivel) OR LOWER(nivel) = 'general' OR nivel IS NULL OR nivel = '')
+                     WHERE (LOWER(nivel) = LOWER(:nivel) OR LOWER(nivel) = 'general' OR nivel IS NULL OR nivel = '' OR LOWER(nombre) LIKE '%blanco%')
                      ORDER BY id ASC",
                     ['nivel' => $nivel],
                     $sedeSlug
@@ -195,6 +195,11 @@ class StatsManager {
         $porcentaje_participacion = ($total_alumnos > 0) ? round(($votos_emitidos / $total_alumnos) * 100, 1) : 0.0;
 
         $resultadosConsolidados = array_merge($centralStats['resultados'], $jeruStats['resultados']);
+        // Recalcular porcentaje consolidado sobre el total de votos emitidos del consolidado
+        foreach ($resultadosConsolidados as &$rc) {
+            $rc['porcentaje'] = ($votos_emitidos > 0) ? round(($rc['votos'] / $votos_emitidos) * 100, 1) : 0.0;
+        }
+        unset($rc);
         usort($resultadosConsolidados, function($a, $b) {
             return $b['votos'] <=> $a['votos'];
         });

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api, { getAssetUrl } from '../api';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, LogOut, CheckCircle2 } from 'lucide-react';
+import { Check, CheckCircle2 } from 'lucide-react';
 import logoColegioAzul from '../assets/logo-colegio-azul.png';
 
 const BLUE = '#1B3A8C';
@@ -34,10 +34,7 @@ const Voting = ({ voter, setVoter }) => {
   }, []);
 
   const getReturnUrna = () => {
-    if (voter?.sede && voter.sede.toLowerCase().includes('jeru')) {
-      return '/Urna-Jerusalen';
-    }
-    return '/Urna-Central';
+    return '/';
   };
 
   // Temporizador de inactividad (90 segundos de seguridad en la cabina)
@@ -218,16 +215,6 @@ const Voting = ({ voter, setVoter }) => {
               {voter.sede}
             </span>
           )}
-          <button
-            onClick={() => { setVoter(null); navigate(getReturnUrna()); }}
-            title="Cerrar y Salir"
-            className="p-2 rounded-full transition-colors"
-            style={{ backgroundColor: '#FEF2F2', color: '#DC2626' }}
-            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#FEE2E2'}
-            onMouseLeave={e => e.currentTarget.style.backgroundColor = '#FEF2F2'}
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
         </div>
       </div>
 

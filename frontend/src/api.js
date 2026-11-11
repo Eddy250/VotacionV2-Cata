@@ -20,11 +20,14 @@ export const getAssetUrl = (path) => {
 };
 
 export const getCabinaSede = () => {
-  return localStorage.getItem('cata_cabina_sede') || 'central';
+  return localStorage.getItem('cata_cabina_sede') || 'universal';
 };
 
 export const setCabinaSede = (sede) => {
-  const clean = (sede && sede.toLowerCase().includes('jeru')) ? 'jerusalen' : 'central';
+  const s = String(sede || '').toLowerCase();
+  let clean = 'universal';
+  if (s.includes('jeru')) clean = 'jerusalen';
+  else if (s === 'central') clean = 'central';
   localStorage.setItem('cata_cabina_sede', clean);
   return clean;
 };

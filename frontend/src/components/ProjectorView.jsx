@@ -250,10 +250,12 @@ const ProjectorView = ({ sede = 'todos', ngs = 'todos', onClose }) => {
   const multiSede = isTodos;
 
   const sedeBadgeText = isJeru
-    ? 'Colegio Adventista Tupac Amaru- JERUSALEN'
+    ? 'Colegio Adventista Tupac Amaru - JERUSALÉN'
     : isCentral
-      ? 'Colegio Adventista Tupac Amaru- CENTRAL'
-      : 'Colegio Adventista Tupac Amaru- GENERAL';
+      ? (selectedNivel === 'Primaria' ? 'Colegio Adventista Tupac Amaru - CENTRAL PRIMARIA' :
+         selectedNivel === 'Secundaria' ? 'Colegio Adventista Tupac Amaru - CENTRAL SECUNDARIA' :
+         'Colegio Adventista Tupac Amaru - CENTRAL')
+      : 'Colegio Adventista Tupac Amaru - GENERAL';
 
   const sedeSubtitle = isJeru
     ? 'Sede Jerusalén · Elección General'
@@ -393,55 +395,7 @@ const ProjectorView = ({ sede = 'todos', ngs = 'todos', onClose }) => {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-4">
-          {/* Selector rápido de sede / nivel para el proyector */}
-          <div className="flex items-center gap-1.5 bg-black/25 p-1 rounded-xl border border-white/10 backdrop-blur-xs">
-            <button
-              type="button"
-              onClick={() => { setSelectedSede('central'); setSelectedNivel('Primaria'); }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
-                selectedSede === 'central' && selectedNivel === 'Primaria'
-                  ? 'bg-amber-400 text-slate-900 shadow-sm'
-                  : 'text-white/80 hover:bg-white/10'
-              }`}
-            >
-              🎒 Central Primaria
-            </button>
-            <button
-              type="button"
-              onClick={() => { setSelectedSede('central'); setSelectedNivel('Secundaria'); }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
-                selectedSede === 'central' && selectedNivel === 'Secundaria'
-                  ? 'bg-indigo-300 text-slate-900 shadow-sm'
-                  : 'text-white/80 hover:bg-white/10'
-              }`}
-            >
-              🎓 Central Secundaria
-            </button>
-            <button
-              type="button"
-              onClick={() => { setSelectedSede('jerusalen'); setSelectedNivel('todos'); }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
-                selectedSede === 'jerusalen'
-                  ? 'bg-emerald-400 text-slate-900 shadow-sm'
-                  : 'text-white/80 hover:bg-white/10'
-              }`}
-            >
-              ⛪ Jerusalén
-            </button>
-            <button
-              type="button"
-              onClick={() => { setSelectedSede('todos'); setSelectedNivel('todos'); }}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                selectedSede === 'todos'
-                  ? 'bg-white text-slate-900 shadow-sm'
-                  : 'text-white/60 hover:bg-white/10'
-              }`}
-            >
-              🌐 Consolidado
-            </button>
-          </div>
-
+        <div className="flex items-center gap-5">
           <div className="text-right">
             <p className="text-3xl font-black tabular-nums tracking-tight">{hora}</p>
             <p className="text-xs text-blue-200 font-semibold capitalize">{fecha}</p>
@@ -517,62 +471,77 @@ const ProjectorView = ({ sede = 'todos', ngs = 'todos', onClose }) => {
           )}
         </div>
 
-        {/* Tarjeta institucional lateral en cabecera: Identificación Oficial de Sede */}
-        <div className="hidden lg:flex items-center gap-3 px-5 py-2.5 bg-white/85 rounded-xl border border-blue-200 shrink-0 text-right shadow-xs">
+        {/* Tarjeta institucional lateral en cabecera: Identificación Oficial de Sede (ESTILO AZUL CATA) */}
+        <div 
+          className="hidden lg:flex items-center gap-3.5 px-5 py-3 rounded-2xl shadow-md border border-blue-400/30 shrink-0 text-right text-white"
+          style={{ backgroundColor: NAVY }}
+        >
           <div>
-            <p className="text-xs font-black uppercase tracking-wider text-slate-800">
+            <p className="text-xs font-black uppercase tracking-wider text-white">
               {sedeBadgeText}
             </p>
-            <p className="text-[11px] font-bold text-slate-500 mt-0.5">
+            <p className="text-[11px] font-semibold text-blue-200 mt-0.5">
               Recuento Automático Oficial · En Vivo
             </p>
-            {/* Selector rápido para alternar sedes */}
-            <div className="flex items-center justify-end gap-1.5 mt-2">
+            {/* Selector rápido unificado (prevaleciente en azul) */}
+            <div className="flex items-center justify-end gap-1.5 mt-2.5">
               <button
                 type="button"
-                onClick={() => setSelectedSede('central')}
-                title="Proyectar Sede Central"
-                className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase transition-all cursor-pointer ${
-                  isCentral
-                    ? 'bg-blue-700 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                onClick={() => { setSelectedSede('central'); setSelectedNivel('Primaria'); }}
+                title="Proyectar Central Primaria"
+                className={`px-3 py-1 rounded-lg text-[10.5px] font-black uppercase transition-all cursor-pointer ${
+                  isCentral && selectedNivel === 'Primaria'
+                    ? 'bg-amber-400 text-slate-950 shadow-sm'
+                    : 'bg-white/10 hover:bg-white/20 text-white border border-white/15'
                 }`}
               >
-                Central
+                🎒 Primaria
               </button>
               <button
                 type="button"
-                onClick={() => setSelectedSede('jerusalen')}
+                onClick={() => { setSelectedSede('central'); setSelectedNivel('Secundaria'); }}
+                title="Proyectar Central Secundaria"
+                className={`px-3 py-1 rounded-lg text-[10.5px] font-black uppercase transition-all cursor-pointer ${
+                  isCentral && selectedNivel === 'Secundaria'
+                    ? 'bg-indigo-300 text-slate-950 shadow-sm'
+                    : 'bg-white/10 hover:bg-white/20 text-white border border-white/15'
+                }`}
+              >
+                🎓 Secundaria
+              </button>
+              <button
+                type="button"
+                onClick={() => { setSelectedSede('jerusalen'); setSelectedNivel('todos'); }}
                 title="Proyectar Sede Jerusalén"
-                className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase transition-all cursor-pointer ${
+                className={`px-3 py-1 rounded-lg text-[10.5px] font-black uppercase transition-all cursor-pointer ${
                   isJeru
-                    ? 'bg-emerald-700 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    ? 'bg-emerald-400 text-slate-950 shadow-sm'
+                    : 'bg-white/10 hover:bg-white/20 text-white border border-white/15'
                 }`}
               >
-                Jerusalén
+                ⛪ Jerusalén
               </button>
               <button
                 type="button"
-                onClick={() => setSelectedSede('todos')}
+                onClick={() => { setSelectedSede('todos'); setSelectedNivel('todos'); }}
                 title="Proyectar Consolidado General (Ambas Sedes)"
-                className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase transition-all cursor-pointer ${
+                className={`px-3 py-1 rounded-lg text-[10.5px] font-black uppercase transition-all cursor-pointer ${
                   isTodos
-                    ? 'bg-slate-800 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    ? 'bg-white text-slate-900 shadow-sm font-black'
+                    : 'bg-white/10 hover:bg-white/20 text-white border border-white/15'
                 }`}
               >
-                General
+                🌐 General
               </button>
             </div>
           </div>
-          <div className="p-2.5 rounded-xl bg-blue-50 shrink-0">
+          <div className="p-2.5 rounded-xl bg-white/15 text-white shrink-0 border border-white/20">
             {isJeru ? (
-              <Church className="w-6 h-6 text-emerald-700" />
+              <Church className="w-6 h-6 text-emerald-300" />
             ) : isTodos ? (
-              <School className="w-6 h-6 text-slate-700" />
+              <School className="w-6 h-6 text-white" />
             ) : (
-              <Building2 className="w-6 h-6 text-blue-800" />
+              <Building2 className="w-6 h-6 text-blue-200" />
             )}
           </div>
         </div>

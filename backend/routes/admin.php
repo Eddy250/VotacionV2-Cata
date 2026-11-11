@@ -317,6 +317,14 @@ function handle_admin_candidato_manage($id) {
     }
 
     if ($method === 'DELETE') {
+        $c = getCandidatoById($id);
+        if ($c && (preg_match('/blanco/i', $c['nombre'] ?? '') || preg_match('/nulo/i', $c['nombre'] ?? ''))) {
+            http_response_code(400);
+            echo json_encode([
+                'error' => 'No es posible eliminar la opción oficial del sistema (Voto en Blanco / Nulo), ya que es un requisito electoral obligatorio en todas las cédulas.'
+            ]);
+            return;
+        }
         deleteCandidato($id);
         echo json_encode([
             'success' => true,
@@ -542,6 +550,36 @@ function handle_admin_election_state() {
     echo json_encode(['error' => 'Método no permitido']);
 }
 
+function handle_admin_jornadas() {
+    $method = $_SERVER['REQUEST_METHOD'];
+    if ($method === 'GET') {
+        echo json_encode([
+            'success' => true,
+            'jornadas' => getJornadasConfig()
+        ]);
+        return;
+    }
+    if ($method === 'POST') {
+        $input = json_decode(file_get_contents('php://input'), true);
+        $jornada = trim($input['jornada'] ?? '');
+        $activo = !empty($input['activo']);
+        try {
+            setJornadaStatus($jornada, $activo);
+            echo json_encode([
+                'success' => true,
+                'message' => "Jornada '{$jornada}' actualizada correctamente.",
+                'jornadas' => getJornadasConfig()
+            ]);
+        } catch (Exception $e) {
+            http_response_code(400);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+        return;
+    }
+    http_response_code(405);
+    echo json_encode(['error' => 'Método no permitido']);
+}
+
 // ---------- MANTENIMIENTO Y PUESTA A CERO ELECTORAL ----------
 
 function handle_admin_reset($adminActual) {
@@ -631,22 +669,53 @@ function handle_admin_reset($adminActual) {
             $mensajes[] = "Urna vaciada en {$sedeNombre}: votos en cero y padrón listo para votar.";
         }
 
-        if ($action === 'candidatos') {
+        if ($action === 'candidatos' || $action === 'total') {
             if ($isMysql && !$separateDbs) {
                 db_query('DELETE FROM votos WHERE sede LIKE :pat OR sede IS NULL', ['pat' => $sedePat]);
                 db_query('UPDATE voters SET ha_votado = 0, fecha_voto = NULL WHERE sede LIKE :pat OR sede IS NULL', ['pat' => $sedePat]);
-                db_query('DELETE FROM candidatos WHERE sede LIKE :pat OR sede IS NULL', ['pat' => $sedePat]);
+                if ($action === 'total') {
+                    db_query('DELETE FROM voters WHERE sede LIKE :pat OR sede IS NULL', ['pat' => $sedePat]);
+                }
+                // Eliminar listas de candidatos preservando la opción de Voto en Blanco
+                if ($sedeTarget === 'ambas' || $sedeTarget === 'todos' || $sedeTarget === 'todas') {
+                    db_query("DELETE FROM candidatos WHERE LOWER(nombre) NOT LIKE '%blanco%' AND LOWER(nombre) NOT LIKE '%nulo%'");
+                } else {
+                    db_query("DELETE FROM candidatos WHERE (sede LIKE :pat OR sede IS NULL) AND LOWER(nombre) NOT LIKE '%blanco%' AND LOWER(nombre) NOT LIKE '%nulo%'", ['pat' => $sedePat]);
+                }
             } else {
                 db_query('DELETE FROM votos', [], $s);
                 db_query('UPDATE voters SET ha_votado = 0, fecha_voto = NULL', [], $s);
-                db_query('DELETE FROM candidatos', [], $s);
+                if ($action === 'total') {
+                    db_query('DELETE FROM voters', [], $s);
+                }
+                db_query("DELETE FROM candidatos WHERE LOWER(nombre) NOT LIKE '%blanco%' AND LOWER(nombre) NOT LIKE '%nulo%'", [], $s);
                 if (DB_DRIVER !== 'mysql') { db_query('VACUUM', [], $s); }
             }
-            insertCandidato('Voto en Blanco', 'Opción cívica democrática', null, [
-                'sede' => $sedeNombre,
-                'color' => '#94A3B8'
-            ]);
-            $mensajes[] = "Candidatos eliminados en {$sedeNombre}. Se conservó únicamente el Voto en Blanco oficial.";
+
+            // Garantizar que exista EXACTAMENTE UN único Voto en Blanco universal (sin duplicados)
+            $blancos = db_query("SELECT id FROM candidatos WHERE LOWER(nombre) LIKE '%blanco%' ORDER BY (CASE WHEN logo IS NOT NULL AND logo != '' THEN 0 ELSE 1 END), id ASC")->fetchAll(PDO::FETCH_COLUMN);
+            if (empty($blancos)) {
+                insertCandidato('Voto en Blanco', 'Opción cívica democrática', null, [
+                    'sede' => 'Universal',
+                    'nivel' => 'General',
+                    'color' => '#1B3A8C'
+                ]);
+            } else {
+                // Si hubiera más de uno, conservar el primero (con logo preferente) y podar los demás
+                if (count($blancos) > 1) {
+                    $keepId = array_shift($blancos);
+                    foreach ($blancos as $delId) {
+                        db_query("DELETE FROM candidatos WHERE id = :id", ['id' => $delId]);
+                    }
+                }
+                db_query("UPDATE candidatos SET sede = 'Universal', nivel = 'General' WHERE LOWER(nombre) LIKE '%blanco%'");
+            }
+
+            if ($action === 'candidatos') {
+                $mensajes[] = "Candidatos eliminados en {$sedeNombre}. Se conservó únicamente el Voto en Blanco oficial.";
+            } else {
+                $mensajes[] = "Reset Total ejecutado en {$sedeNombre}: sistema limpio y virgen para la elección.";
+            }
         }
 
         if ($action === 'padron') {
@@ -659,24 +728,6 @@ function handle_admin_reset($adminActual) {
                 if (DB_DRIVER !== 'mysql') { db_query('VACUUM', [], $s); }
             }
             $mensajes[] = "Padrón electoral vaciado por completo en {$sedeNombre}.";
-        }
-
-        if ($action === 'total') {
-            if ($isMysql && !$separateDbs) {
-                db_query('DELETE FROM votos WHERE sede LIKE :pat OR sede IS NULL', ['pat' => $sedePat]);
-                db_query('DELETE FROM voters WHERE sede LIKE :pat OR sede IS NULL', ['pat' => $sedePat]);
-                db_query('DELETE FROM candidatos WHERE sede LIKE :pat OR sede IS NULL', ['pat' => $sedePat]);
-            } else {
-                db_query('DELETE FROM votos', [], $s);
-                db_query('DELETE FROM voters', [], $s);
-                db_query('DELETE FROM candidatos', [], $s);
-                if (DB_DRIVER !== 'mysql') { db_query('VACUUM', [], $s); }
-            }
-            insertCandidato('Voto en Blanco', 'Opción cívica democrática', null, [
-                'sede' => $sedeNombre,
-                'color' => '#94A3B8'
-            ]);
-            $mensajes[] = "Reset Total ejecutado en {$sedeNombre}: sistema limpio y virgen para la elección.";
         }
     }
 
@@ -738,4 +789,193 @@ function handle_admin_migrate_mysql() {
             'error' => 'Error durante la migración a MySQL: ' . $e->getMessage()
         ]);
     }
+}
+
+/**
+ * Genera los datos oficiales para las Actas Electorales (Sufragio y Escrutinio)
+ * según el estándar oficial ONPE / MINEDU.
+ */
+function handle_admin_acta() {
+    $ambito = strtolower(trim($_GET['ambito'] ?? 'central_primaria'));
+
+    // Configuración según ámbito y comités oficiales
+    $configAmbito = [
+        'central_primaria' => [
+            'id' => 'central_primaria',
+            'sede' => 'central',
+            'nivel' => 'Primaria',
+            'titulo' => 'ELECCIONES MUNICIPIO ESCOLAR 2026',
+            'subtitulo' => 'SEDE CENTRAL · NIVEL PRIMARIA',
+            'mesa' => '030391-PRI',
+            'jornada_label' => 'DÍA 1 (PRIMARIA CENTRAL)',
+            'comite_docente' => [
+                ['cargo' => 'PRESIDENTE', 'nombre' => 'LIC. ADEMER HUAHUACONDORI ARANDA'],
+                ['cargo' => 'VICEPRESIDENTE', 'nombre' => 'LIC. VERONICA QUISPE NINA'],
+                ['cargo' => 'SECRETARIA', 'nombre' => 'LIC. LISBETH OLARTE QUISPE'],
+                ['cargo' => 'VOCAL', 'nombre' => 'LIC. BERTHA CHAMBI CONDORI']
+            ],
+            'comite_estudiantil' => [
+                ['cargo' => 'PRESIDENTE DE MESA', 'nombre' => ''],
+                ['cargo' => 'VICEPRESIDENTE', 'nombre' => ''],
+                ['cargo' => 'SECRETARIO(A)', 'nombre' => ''],
+                ['cargo' => 'VOCAL', 'nombre' => '']
+            ]
+        ],
+        'jerusalen' => [
+            'id' => 'jerusalen',
+            'sede' => 'jerusalen',
+            'nivel' => 'General',
+            'titulo' => 'ELECCIONES MUNICIPIO ESCOLAR 2026',
+            'subtitulo' => 'SEDE JERUSALÉN · ELECCIÓN GENERAL',
+            'mesa' => '030392-JER',
+            'jornada_label' => 'DÍA 1 (SEDE JERUSALÉN)',
+            'comite_docente' => [
+                ['cargo' => 'PRESIDENTE', 'nombre' => 'LIC. CARLOS ALBERTO JUÁREZ LUQUE'],
+                ['cargo' => 'SECRETARIA', 'nombre' => 'LIC. SARA LIZBETH HANCCO SANCHO']
+            ],
+            'comite_estudiantil' => [
+                ['cargo' => 'PRESIDENTE DE MESA', 'nombre' => ''],
+                ['cargo' => 'SECRETARIA', 'nombre' => ''],
+                ['cargo' => 'VOCAL', 'nombre' => '']
+            ]
+        ],
+        'central_secundaria' => [
+            'id' => 'central_secundaria',
+            'sede' => 'central',
+            'nivel' => 'Secundaria',
+            'titulo' => 'ELECCIONES MUNICIPIO ESCOLAR 2026',
+            'subtitulo' => 'SEDE CENTRAL · NIVEL SECUNDARIA',
+            'mesa' => '030393-SEC',
+            'jornada_label' => 'DÍA 2 (COLEGIO SECUNDARIA)',
+            'comite_docente' => [
+                ['cargo' => 'PRESIDENTE', 'nombre' => 'LIC. DUBERLY ENRIQUE PARI PARI'],
+                ['cargo' => 'VICEPRESIDENTE', 'nombre' => 'LIC. MOISÉS CONDORI CUSI'],
+                ['cargo' => 'SECRETARIO', 'nombre' => 'LIC. JHON DENNYS RODRIGO LÓPEZ'],
+                ['cargo' => 'VOCAL', 'nombre' => 'LIC. IRIS VANESA QUISPE LARICO']
+            ],
+            'comite_estudiantil' => [
+                ['cargo' => 'PRESIDENTE DE MESA', 'nombre' => 'HEYDI LUZ CHAMBI MAMANI'],
+                ['cargo' => 'VICEPRESIDENTE', 'nombre' => 'VIVIAN MENDOZA CABRERA'],
+                ['cargo' => 'SECRETARIO(A)', 'nombre' => 'HELEN EVOLETH MOSCAIRO CHALLAPA'],
+                ['cargo' => 'VOCAL', 'nombre' => 'ARTHUR HANDE ARAPA MOLLOCONDO']
+            ]
+        ]
+    ];
+
+    if (!isset($configAmbito[$ambito])) {
+        $ambito = 'central_primaria';
+    }
+
+    $cfg = $configAmbito[$ambito];
+    $slug = $cfg['sede'];
+    $nivel = $cfg['nivel'];
+    set_active_db($slug);
+
+    // Electores hábiles y sufragantes
+    $isMysql = (DB_DRIVER === 'mysql');
+    $separateDbs = defined('DB_SEPARATE_DBS') && DB_SEPARATE_DBS;
+
+    if ($isMysql && !$separateDbs) {
+        $sedePattern = ($slug === 'jerusalen') ? '%Jerusal%' : '%Central%';
+        $nivelCondition = ($slug === 'jerusalen') ? "1=1" : "LOWER(nivel) = '" . strtolower($nivel) . "'";
+
+        $totalHabiles = (int)db_query("SELECT COUNT(*) FROM voters WHERE (sede LIKE :s OR sede IS NULL) AND {$nivelCondition}", ['s' => $sedePattern])->fetchColumn();
+        $totalVotaron = (int)db_query("SELECT COUNT(*) FROM voters WHERE (sede LIKE :s OR sede IS NULL) AND {$nivelCondition} AND ha_votado = 1", ['s' => $sedePattern])->fetchColumn();
+    } else {
+        $nivelCondition = ($slug === 'jerusalen') ? "1=1" : "LOWER(nivel) = '" . strtolower($nivel) . "'";
+        $totalHabiles = (int)db_query("SELECT COUNT(*) FROM voters WHERE {$nivelCondition}")->fetchColumn();
+        $totalVotaron = (int)db_query("SELECT COUNT(*) FROM voters WHERE {$nivelCondition} AND ha_votado = 1")->fetchColumn();
+    }
+
+    $noUtilizadas = max(0, $totalHabiles - $totalVotaron);
+
+    // Obtener listas y votos
+    $candFilter = [
+        'sede' => ($slug === 'jerusalen') ? 'Sede Jerusalén' : 'Sede Central',
+        'nivel' => $nivel
+    ];
+    $candidatosRaw = getAllCandidatos($candFilter['sede'], $candFilter['nivel']);
+
+    $listas = [];
+    $votoBlanco = 0;
+    $votoNulo = 0;
+    $logoBlanco = null;
+    $logoNulo = null;
+    $votosEmitidosTotal = 0;
+
+    foreach ($candidatosRaw as $c) {
+        $cid = (int)$c['id'];
+        
+        $whereV = ['candidato_id = :cid'];
+        $paramsV = ['cid' => $cid];
+
+        if ($isMysql && !$separateDbs) {
+            $whereV[] = ($slug === 'jerusalen') ? "sede LIKE '%Jerusal%'" : "(sede LIKE '%Central%' OR sede IS NULL)";
+            if ($slug === 'central' && $nivel && $nivel !== 'todos') {
+                $whereV[] = "LOWER(nivel) = :v_nivel";
+                $paramsV['v_nivel'] = strtolower($nivel);
+            }
+        } else {
+            if ($slug === 'central' && $nivel && $nivel !== 'todos') {
+                $whereV[] = "LOWER(nivel) = :v_nivel";
+                $paramsV['v_nivel'] = strtolower($nivel);
+            }
+        }
+
+        $votosCount = (int)db_query(
+            "SELECT COUNT(*) FROM votos WHERE " . implode(' AND ', $whereV),
+            $paramsV,
+            $slug
+        )->fetchColumn();
+
+        $nombreCand = trim($c['nombre'] ?? '');
+        $votosEmitidosTotal += $votosCount;
+
+        if (preg_match('/blanco/i', $nombreCand)) {
+            $votoBlanco += $votosCount;
+            if (!empty($c['logo'])) {
+                $logoBlanco = $c['logo'];
+            } elseif (!empty($c['foto'])) {
+                $logoBlanco = $c['foto'];
+            }
+        } elseif (preg_match('/nulo/i', $nombreCand)) {
+            $votoNulo += $votosCount;
+            if (!empty($c['logo'])) {
+                $logoNulo = $c['logo'];
+            } elseif (!empty($c['foto'])) {
+                $logoNulo = $c['foto'];
+            }
+        } else {
+            $listas[] = [
+                'id' => $c['id'],
+                'numero' => $c['numero_lista'] ?: (count($listas) + 1),
+                'nombre' => $c['nombre'],
+                'alcalde' => $c['alcalde'] ?? '',
+                'slogan' => $c['slogan'] ?? '',
+                'logo' => $c['logo'] ?? $c['foto'] ?? null,
+                'votos' => $votosCount
+            ];
+        }
+    }
+
+    echo json_encode([
+        'success' => true,
+        'ambito' => $cfg,
+        'fecha' => date('d/m/Y'),
+        'fecha_texto' => date('d') . ' de Noviembre de 2026',
+        'cifras' => [
+            'electores_habiles' => $totalHabiles,
+            'ciudadanos_votaron' => $totalVotaron,
+            'cedulas_no_utilizadas' => $noUtilizadas,
+            'votos_blanco' => $votoBlanco,
+            'votos_nulo' => $votoNulo,
+            'votos_impugnados' => 0,
+            'logo_blanco' => $logoBlanco,
+            'logo_nulo' => $logoNulo,
+            'total_votos_emitidos' => $votosEmitidosTotal
+        ],
+        'listas' => $listas,
+        'comite_docente' => $cfg['comite_docente'],
+        'comite_estudiantil' => $cfg['comite_estudiantil']
+    ]);
 }

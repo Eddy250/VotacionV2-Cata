@@ -11,12 +11,31 @@ const parseGradoSeccion = (alumno) => {
   let grado = alumno.grado ? String(alumno.grado).trim() : '';
   let seccion = alumno.seccion ? String(alumno.seccion).trim() : '';
 
-  if (!grado || !seccion) {
+  if (!grado || !seccion || grado.toUpperCase() === 'GENERAL') {
     const raw = (alumno.ngs || '').trim();
     const upper = raw.toUpperCase();
+    const cleanNgs = upper.replace(/[\s\-_.]/g, '');
 
-    // 1. Detección de Grado
-    if (!grado) {
+    // 1. Detección de código oficial de 3 caracteres (ej: P2B, S3A, C1B)
+    const m3 = cleanNgs.match(/^([PSCIK])([1-6])([A-ZÚ])$/i);
+    if (m3) {
+      return {
+        grado: `${m3[2]}°`,
+        seccion: (m3[3] === 'U' || m3[3] === 'Ú') ? 'ÚNICA' : m3[3]
+      };
+    }
+
+    // 2. Detección de código de 2 caracteres (ej: 2B, 3A)
+    const m2 = cleanNgs.match(/^([1-6])([A-ZÚ])$/i);
+    if (m2) {
+      return {
+        grado: `${m2[1]}°`,
+        seccion: (m2[2] === 'U' || m2[2] === 'Ú') ? 'ÚNICA' : m2[2]
+      };
+    }
+
+    // 3. Detección de Grado
+    if (!grado || grado.toUpperCase() === 'GENERAL') {
       if (upper.includes('PRIMER') || /\b1\b|1°|1º/.test(upper)) grado = '1°';
       else if (upper.includes('SEGUND') || /\b2\b|2°|2º/.test(upper)) grado = '2°';
       else if (upper.includes('TERCER') || /\b3\b|3°|3º/.test(upper)) grado = '3°';
@@ -29,22 +48,20 @@ const parseGradoSeccion = (alumno) => {
       }
     }
 
-    // 2. Detección de Sección
-    if (!seccion) {
+    // 4. Detección de Sección
+    if (!seccion || seccion.toUpperCase() === 'ÚNICA') {
       const secLetterMatch = upper.match(/(?:SECCI[OÓ]N|SEC\.?|AULA)\s*[:\-]?\s*([A-E])\b/i) ||
         upper.match(/[1-6]\s*(?:°|º)?\s*([A-E])\b/i);
       if (secLetterMatch) {
         seccion = secLetterMatch[1].toUpperCase();
       } else if (upper.includes('UNIC')) {
         seccion = 'ÚNICA';
-      } else {
-        seccion = 'ÚNICA';
       }
     }
   }
 
   return {
-    grado: grado || 'GENERAL',
+    grado: (grado && grado.toUpperCase() !== 'GENERAL') ? grado : 'GENERAL',
     seccion: seccion || 'ÚNICA'
   };
 };
@@ -90,6 +107,7 @@ const StudentMonitor = () => {
 
   // Filtros de la tabla principal
   const [selectedSede, setSelectedSede] = useState('todos');
+  const [selectedNivel, setSelectedNivel] = useState('todos');
   const [selectedNgs, setSelectedNgs] = useState('todos');
   const [selectedEstado, setSelectedEstado] = useState('todos');
   const [search, setSearch] = useState('');
@@ -99,6 +117,7 @@ const StudentMonitor = () => {
   // Estado del Modal de Descarga por Grado y Sección
   const [showExportModal, setShowExportModal] = useState(false);
   const [modalSede, setModalSede] = useState('todos');
+  const [modalNivel, setModalNivel] = useState('todos');
   const [modalNgs, setModalNgs] = useState('todos');
   const [modalEstado, setModalEstado] = useState('todos');
   const [modalDownloading, setModalDownloading] = useState(false);
@@ -109,11 +128,18 @@ const StudentMonitor = () => {
   // Estado de descarga de reporte completo
   const [exportingReporte, setExportingReporte] = useState(false);
 
+  const handleAmbitoSelect = (sede, nivel = 'todos') => {
+    setSelectedSede(sede);
+    setSelectedNivel(nivel);
+    setSelectedNgs('todos');
+  };
+
   const loadData = async (showSpinner = true) => {
     if (showSpinner) setLoading(true);
     try {
       const params = new URLSearchParams();
       if (selectedSede !== 'todos') params.append('sede', selectedSede);
+      if (selectedNivel !== 'todos') params.append('nivel', selectedNivel);
       if (selectedNgs !== 'todos') params.append('ngs', selectedNgs);
       if (selectedEstado !== 'todos') params.append('estado', selectedEstado);
       if (search.trim()) params.append('search', search.trim());
@@ -144,7 +170,7 @@ const StudentMonitor = () => {
       }
     }, 3000);
     return () => clearInterval(interval);
-  }, [selectedSede, selectedNgs, selectedEstado, showOnpeModal]);
+  }, [selectedSede, selectedNivel, selectedNgs, selectedEstado, showOnpeModal]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -160,6 +186,7 @@ const StudentMonitor = () => {
   // Abrir Modal de exportación sincronizando con el filtro activo actual
   const handleOpenExportModal = () => {
     setModalSede(selectedSede);
+    setModalNivel(selectedNivel);
     setModalNgs(selectedNgs);
     setModalEstado(selectedEstado);
     setShowExportModal(true);
@@ -171,6 +198,7 @@ const StudentMonitor = () => {
     try {
       const params = new URLSearchParams();
       if (modalSede !== 'todos') params.append('sede', modalSede);
+      if (modalNivel !== 'todos') params.append('nivel', modalNivel);
       if (modalNgs !== 'todos') params.append('ngs', modalNgs);
       if (modalEstado !== 'todos') params.append('estado', modalEstado);
 
@@ -349,23 +377,84 @@ const StudentMonitor = () => {
         </div>
       </div>
 
+      {/* Pestañas de Acceso Rápido por Ámbito Electoral */}
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => handleAmbitoSelect('todos', 'todos')}
+          className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+            selectedSede === 'todos' && selectedNivel === 'todos'
+              ? 'bg-slate-900 text-white shadow-sm ring-2 ring-slate-900/20'
+              : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+          }`}
+        >
+          <span>🌐 Todas las Sedes</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => handleAmbitoSelect('Sede Central', 'Primaria')}
+          className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+            selectedSede === 'Sede Central' && selectedNivel === 'Primaria'
+              ? 'bg-blue-900 text-white shadow-sm ring-2 ring-blue-900/20'
+              : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+          }`}
+        >
+          <span>🎒 Central Primaria (Día 1)</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => handleAmbitoSelect('Sede Central', 'Secundaria')}
+          className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+            selectedSede === 'Sede Central' && selectedNivel === 'Secundaria'
+              ? 'bg-indigo-900 text-white shadow-sm ring-2 ring-indigo-900/20'
+              : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+          }`}
+        >
+          <span>🎓 Central Secundaria (Día 2)</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => handleAmbitoSelect('Sede Jerusalén', 'todos')}
+          className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+            selectedSede === 'Sede Jerusalén'
+              ? 'bg-emerald-800 text-white shadow-sm ring-2 ring-emerald-800/20'
+              : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+          }`}
+        >
+          <span>⛪ Sede Jerusalén (Día 1)</span>
+        </button>
+      </div>
+
       {/* Barra de Filtros y Búsqueda */}
       <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-          {/* Filtro Sede */}
+          {/* Filtro Sede y Nivel */}
           <div>
-            <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Sede</label>
+            <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Ámbito / Sede</label>
             <select
-              value={selectedSede}
-              onChange={(e) => setSelectedSede(e.target.value)}
+              value={
+                selectedSede === 'todos' ? 'todos' :
+                (selectedSede === 'Sede Central' && selectedNivel === 'Primaria' ? 'central_primaria' :
+                (selectedSede === 'Sede Central' && selectedNivel === 'Secundaria' ? 'central_secundaria' :
+                (selectedSede === 'Sede Central' ? 'central_todos' : 'jerusalen')))
+              }
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === 'todos') handleAmbitoSelect('todos', 'todos');
+                else if (val === 'central_primaria') handleAmbitoSelect('Sede Central', 'Primaria');
+                else if (val === 'central_secundaria') handleAmbitoSelect('Sede Central', 'Secundaria');
+                else if (val === 'central_todos') handleAmbitoSelect('Sede Central', 'todos');
+                else if (val === 'jerusalen') handleAmbitoSelect('Sede Jerusalén', 'todos');
+              }}
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none transition-colors"
               onFocus={e => e.target.style.borderColor = BLUE}
               onBlur={e => e.target.style.borderColor = '#E2E8F0'}
             >
-              <option value="todos">Todas las Sedes</option>
-              {sedesDisponibles.map((s, idx) => (
-                <option key={idx} value={s}>{s}</option>
-              ))}
+              <option value="todos">🌐 Todas las Sedes (Ambos Niveles)</option>
+              <option value="central_primaria">🎒 Sede Central — Nivel Primaria</option>
+              <option value="central_secundaria">🎓 Sede Central — Nivel Secundaria</option>
+              <option value="central_todos">🏛️ Sede Central (Completa)</option>
+              <option value="jerusalen">⛪ Sede Jerusalén (Completa)</option>
             </select>
           </div>
 
@@ -674,22 +763,35 @@ const StudentMonitor = () => {
                 </select>
               </div>
 
-              {/* Selector Sede */}
+              {/* Selector Sede / Ámbito */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  2. Sede Institucional:
+                  2. Ámbito Electoral:
                 </label>
                 <select
-                  value={modalSede}
-                  onChange={(e) => setModalSede(e.target.value)}
+                  value={
+                    modalSede === 'todos' ? 'todos' :
+                    (modalSede === 'Sede Central' && modalNivel === 'Primaria' ? 'central_primaria' :
+                    (modalSede === 'Sede Central' && modalNivel === 'Secundaria' ? 'central_secundaria' :
+                    (modalSede === 'Sede Central' ? 'central_todos' : 'jerusalen')))
+                  }
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === 'todos') { setModalSede('todos'); setModalNivel('todos'); }
+                    else if (val === 'central_primaria') { setModalSede('Sede Central'); setModalNivel('Primaria'); }
+                    else if (val === 'central_secundaria') { setModalSede('Sede Central'); setModalNivel('Secundaria'); }
+                    else if (val === 'central_todos') { setModalSede('Sede Central'); setModalNivel('todos'); }
+                    else if (val === 'jerusalen') { setModalSede('Sede Jerusalén'); setModalNivel('todos'); }
+                  }}
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 outline-none"
                   onFocus={e => e.target.style.borderColor = '#10B981'}
                   onBlur={e => e.target.style.borderColor = '#E2E8F0'}
                 >
-                  <option value="todos">Todas las Sedes</option>
-                  {sedesDisponibles.map((s, idx) => (
-                    <option key={idx} value={s}>{s}</option>
-                  ))}
+                  <option value="todos">🌐 Todas las Sedes (Ambos Niveles)</option>
+                  <option value="central_primaria">🎒 Sede Central — Nivel Primaria</option>
+                  <option value="central_secundaria">🎓 Sede Central — Nivel Secundaria</option>
+                  <option value="central_todos">🏛️ Sede Central (Completa)</option>
+                  <option value="jerusalen">⛪ Sede Jerusalén</option>
                 </select>
               </div>
 

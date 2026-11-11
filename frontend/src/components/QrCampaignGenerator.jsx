@@ -17,8 +17,8 @@ const QrCampaignGenerator = () => {
 
   // Determinar la URL final según el modo
   const getActiveUrl = () => {
-    if (mode === 'portal') return `${defaultBase}/`;
-    if (mode === 'urna') return `${defaultBase}/Urna`;
+    if (mode === 'portal') return `${defaultBase}/portal`;
+    if (mode === 'urna') return `${defaultBase}/`;
     return customUrl;
   };
 

@@ -35,9 +35,9 @@ function getAllCandidatos($sede = null, $nivel = null, $soloAprobados = false)
 
         if ($slug) {
             if ($slug === 'jerusalen') {
-                $where[] = "(sede LIKE '%Jerusal%' OR LOWER(nombre) LIKE '%blanco%')";
+                $where[] = "(sede LIKE '%Jerusal%' OR LOWER(nombre) LIKE '%blanco%' OR LOWER(sede) LIKE '%universal%')";
             } else {
-                $where[] = "(sede LIKE '%Central%' OR sede IS NULL OR LOWER(nombre) LIKE '%blanco%')";
+                $where[] = "(sede LIKE '%Central%' OR sede IS NULL OR LOWER(nombre) LIKE '%blanco%' OR LOWER(sede) LIKE '%universal%')";
             }
         }
 

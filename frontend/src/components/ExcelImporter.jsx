@@ -8,7 +8,8 @@ const BLUE = '#1B3A8C';
 
 /**
  * Función inteligente para normalizar Nivel, Grado, Sección y Salón (NGS)
- * Soporta columnas separadas, columna única, y nombres de archivo (ej. 1A_PRIMARIA.xlsx)
+ * Soporta formato oficial de 3 caracteres (ej. P2B = Primaria 2° B, S3A = Secundaria 3° A, C1B = Colegio/Secundaria 1° B),
+ * códigos de 2 caracteres (ej. 2B), columnas separadas, columna única, y nombres de archivo (ej. 1A_PRIMARIA.xlsx)
  */
 const parseSalonInfo = (rawNivel, rawGrado, rawSeccion, rawNGS, filename) => {
   const cleanStr = (s) => (s ? String(s).trim() : '');
@@ -36,7 +37,71 @@ const parseSalonInfo = (rawNivel, rawGrado, rawSeccion, rawNGS, filename) => {
     return { isInicial: true };
   }
 
-  // 2. Detección de Nivel (PRIMARIA o SECUNDARIA)
+  // 2. Detección PRIORITARIA de código oficial de 3 caracteres (ej: P2B, S3A, C1B, I3A, K4B)
+  // P = Primaria, S = Secundaria, C = Colegio (Secundaria), I/K = Inicial
+  const ngsClean = ngsRaw.toUpperCase().replace(/[\s\-_.]/g, '');
+  const gradoClean = gradoRaw.toUpperCase().replace(/[\s\-_.]/g, '');
+  const candidateCode = ngsClean || gradoClean;
+
+  const match3 = candidateCode.match(/^([PSCIK])([1-6])([A-ZÚ])$/i) ||
+                 ngsRaw.toUpperCase().match(/(?:^|[^A-Z0-9])([PSCIK])\s*[\-_.]?\s*([1-6])\s*[\-_.]?\s*([A-ZÚ])(?:[^A-Z0-9]|$)/i) ||
+                 gradoRaw.toUpperCase().match(/(?:^|[^A-Z0-9])([PSCIK])\s*[\-_.]?\s*([1-6])\s*[\-_.]?\s*([A-ZÚ])(?:[^A-Z0-9]|$)/i);
+
+  if (match3) {
+    const prefix = match3[1].toUpperCase();
+    const gNum = match3[2];
+    const secLetter = match3[3].toUpperCase();
+
+    // Prefijo I o K: Inicial o Kinder -> descartar automáticamente
+    if (prefix === 'I' || prefix === 'K') {
+      return { isInicial: true };
+    }
+
+    const nivel = (prefix === 'P') ? 'PRIMARIA' : 'SECUNDARIA';
+    const grado = `${gNum}°`;
+    const seccion = (secLetter === 'U' || secLetter === 'Ú') ? 'ÚNICA' : secLetter;
+    const ngs = `${grado} ${seccion} - ${nivel}`;
+
+    return {
+      isInicial: false,
+      nivel,
+      grado,
+      seccion,
+      ngs
+    };
+  }
+
+  // 3. Detección de código de 2 caracteres (ej: 2B, 3A, 4C)
+  const match2 = candidateCode.match(/^([1-6])([A-ZÚ])$/i) ||
+                 ngsRaw.toUpperCase().match(/(?:^|[^A-Z0-9])([1-6])\s*[\-_.]?\s*([A-ZÚ])(?:[^A-Z0-9]|$)/i);
+
+  if (match2) {
+    const gNum = match2[1];
+    const secLetter = match2[2].toUpperCase();
+
+    let nivel = 'PRIMARIA';
+    if (combined.includes('SECUNDAR') || combined.includes('SEC') || combined.includes('COLEGIO')) {
+      nivel = 'SECUNDARIA';
+    } else if (gNum === '6') {
+      nivel = 'PRIMARIA';
+    } else if (combined.includes('PRIMAR') || combined.includes('PRI')) {
+      nivel = 'PRIMARIA';
+    }
+
+    const grado = `${gNum}°`;
+    const seccion = (secLetter === 'U' || secLetter === 'Ú') ? 'ÚNICA' : secLetter;
+    const ngs = `${grado} ${seccion} - ${nivel}`;
+
+    return {
+      isInicial: false,
+      nivel,
+      grado,
+      seccion,
+      ngs
+    };
+  }
+
+  // 4. Detección general por palabras clave (Nivel, Grado, Sección)
   let nivel = '';
   if (combined.includes('SECUNDAR') || combined.includes('SEC') || combined.includes('COLEGIO')) {
     nivel = 'SECUNDARIA';
@@ -44,7 +109,7 @@ const parseSalonInfo = (rawNivel, rawGrado, rawSeccion, rawNGS, filename) => {
     nivel = 'PRIMARIA';
   }
 
-  // 3. Detección de Grado (1° a 6°)
+  // Detección de Grado (1° a 6°)
   let grado = '';
   const gradoMatch = combined.match(/(?:GRADO\s*|\b)([1-6])(?:°|ro|do|er|to|vo|mo)?\b/i) ||
                      combined.match(/\b([1-6])\s*(?:PRIMARIA|SECUNDARIA|[A-E])\b/i);
@@ -75,7 +140,7 @@ const parseSalonInfo = (rawNivel, rawGrado, rawSeccion, rawNGS, filename) => {
     nivel = 'PRIMARIA';
   }
 
-  // 4. Detección de Sección (A, B, C, D, E o ÚNICA)
+  // Detección de Sección (A, B, C, D, E o ÚNICA)
   let seccion = '';
   if (seccionRaw) {
     const secLetter = seccionRaw.replace(/[^A-Za-z]/g, '').toUpperCase();
@@ -201,6 +266,19 @@ const ExcelImporter = ({ onImportFinished }) => {
 
         const headers = rows[headerRowIndex].map(h => String(h).toLowerCase().trim());
 
+        // Detectar si en las filas superiores (metadatos de cabecera) viene "Nivel: P" o "Nivel: S"
+        let sheetNivel = '';
+        for (let rIdx = 0; rIdx < Math.min(rows.length, 6); rIdx++) {
+          const rStr = (rows[rIdx] || []).map(c => String(c)).join(' ').toUpperCase();
+          if (rStr.includes('NIVEL: P') || rStr.includes('NIVEL:P') || rStr.includes('NIVEL : P')) {
+            sheetNivel = 'PRIMARIA';
+            break;
+          } else if (rStr.includes('NIVEL: S') || rStr.includes('NIVEL:S') || rStr.includes('NIVEL: C') || rStr.includes('NIVEL:C') || rStr.includes('SECUNDARIA')) {
+            sheetNivel = 'SECUNDARIA';
+            break;
+          }
+        }
+
         // Mapear índices de columnas de forma inteligente y segura
         const colMap = {
           codigo: headers.findIndex(h => 
@@ -257,7 +335,7 @@ const ExcelImporter = ({ onImportFinished }) => {
             continue;
           }
 
-          const rawNivel = colMap.nivel !== -1 ? String(row[colMap.nivel] || '') : '';
+          const rawNivel = colMap.nivel !== -1 ? String(row[colMap.nivel] || '') : sheetNivel;
           const rawGrado = colMap.grado !== -1 ? String(row[colMap.grado] || '') : '';
           const rawSeccion = colMap.seccion !== -1 ? String(row[colMap.seccion] || '') : '';
           const rawNGS = colMap.ngs !== -1 ? String(row[colMap.ngs] || '') : '';

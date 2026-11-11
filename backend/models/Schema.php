@@ -250,7 +250,8 @@ function _actualizarEsquemaBDSede()
                     $pdo->exec("ALTER TABLE voters ADD COLUMN {$col} {$def}");
                 }
             }
-        } catch (Exception $e) {}
+        } catch (Exception $e) {
+        }
 
         try {
             $votosColsStmt = $pdo->query("SHOW COLUMNS FROM votos");
@@ -265,7 +266,8 @@ function _actualizarEsquemaBDSede()
                     $pdo->exec("ALTER TABLE votos ADD COLUMN {$col} {$def}");
                 }
             }
-        } catch (Exception $e) {}
+        } catch (Exception $e) {
+        }
 
         try {
             $candColsStmt = $pdo->query("SHOW COLUMNS FROM candidatos");
@@ -311,7 +313,8 @@ function _actualizarEsquemaBDSede()
                     $pdo->exec("ALTER TABLE candidatos ADD COLUMN {$col} {$def}");
                 }
             }
-        } catch (Exception $e) {}
+        } catch (Exception $e) {
+        }
     } else {
         // SQLite: migración de columnas con PRAGMA
         $colsStmt = $pdo->query("PRAGMA table_info(voters)");
@@ -444,55 +447,13 @@ function sembrarAdminsPorDefecto()
 
 function sembrarDatosDePrueba()
 {
-    $originalSede = get_active_sede();
-
-    // Sede Central
-    set_active_db('central');
-    $countCentral = (int) db_query("SELECT COUNT(*) FROM candidatos WHERE sede LIKE '%Central%' OR sede IS NULL")->fetchColumn();
-    if ($countCentral === 0) {
-        insertCandidato('Lista Fuerza CATA', 'Trabajamos por un colegio mejor', null, [
-            'slogan' => '¡Juntos hacemos la diferencia!',
-            'alcalde' => 'Franco Vidal',
-            'teniente' => 'Ana Torres',
-            'regidor_educacion' => 'Carlos Quispe',
-            'regidor_salud' => 'María López',
-            'regidor_emprendimiento' => 'Luis Mendoza',
-            'regidor_derechos' => 'Pedro Mamani',
-            'regidor_comunicacion' => 'Lucía Flores',
-            'sede' => 'Sede Central',
-            'nivel' => 'Primaria',
+    // Garantizar únicamente la existencia de la opción obligatoria del sistema (Voto en Blanco universal)
+    $countBlanco = (int) db_query("SELECT COUNT(*) FROM candidatos WHERE LOWER(nombre) LIKE '%blanco%'")->fetchColumn();
+    if ($countBlanco === 0) {
+        insertCandidato('Voto en Blanco', 'Opción cívica democrática', null, [
+            'sede' => 'Universal',
+            'nivel' => 'General',
             'color' => '#1B3A8C'
         ]);
-        insertCandidato('Lista Juventud en Acción', 'Innovación y compromiso estudiantil', null, [
-            'slogan' => '¡Tu voz, nuestro compromiso!',
-            'alcalde' => 'María González',
-            'teniente' => 'José Flores',
-            'regidor_educacion' => 'Lucía Ramos',
-            'regidor_salud' => 'David Chura',
-            'regidor_emprendimiento' => 'Elena Vargas',
-            'regidor_derechos' => 'Sofía Apaza',
-            'regidor_comunicacion' => 'Raúl Castro',
-            'sede' => 'Sede Central',
-            'nivel' => 'Secundaria',
-            'color' => '#E11D48'
-        ]);
-        insertCandidato('Voto en Blanco', 'Opción cívica democrática', null, [
-            'sede' => 'Sede Central',
-            'nivel' => 'General',
-            'color' => '#94A3B8'
-        ]);
     }
-
-    // Sede Jerusalén
-    set_active_db('jerusalen');
-    $countJeru = (int) db_query("SELECT COUNT(*) FROM candidatos WHERE sede LIKE '%Jerusal%'")->fetchColumn();
-    if ($countJeru === 0) {
-        insertCandidato('Voto en Blanco', 'Opción cívica democrática', null, [
-            'sede' => 'Sede Jerusalén',
-            'nivel' => 'General',
-            'color' => '#94A3B8'
-        ]);
-    }
-
-    set_active_db($originalSede);
 }

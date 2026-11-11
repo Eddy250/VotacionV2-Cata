@@ -5,19 +5,19 @@ import { extractDominantColor } from '../utils/colorExtractor';
 import { 
   Users, CheckCircle2, AlertCircle, Save, Send, Image as ImageIcon, 
   Search, X, Camera, Sparkles, Shield, UserCheck, ArrowRight, RefreshCw, Check,
-  ChevronDown, GraduationCap
+  ChevronDown, GraduationCap, FileText, Download
 } from 'lucide-react';
 import logoColegioAzul from '../assets/logo-colegio-azul.png';
 
-// Definición oficial de los 7 cargos según normativa ONPE/MINEDU
+// Definición oficial de cargos según el Modelo Oficial MINEDU ("Somos Pares - Municipio Escolar")
 const CARGOS_LISTA = [
-  { key: 'alcalde', label: 'Alcalde(sa)', placeholder: 'Nombres y Apellidos completos del candidato a Alcalde(sa)', req: true },
-  { key: 'teniente', label: 'Teniente Alcalde(sa)', placeholder: 'Nombres y Apellidos completos del Teniente Alcalde', req: true },
-  { key: 'regidor_educacion', label: 'Regidor(a) de Educación, Cultura, Recreación y Deporte', placeholder: 'Nombres y Apellidos completos', req: true },
-  { key: 'regidor_salud', label: 'Regidor(a) de Salud y Medio Ambiente', placeholder: 'Nombres y Apellidos completos', req: true },
-  { key: 'regidor_emprendimiento', label: 'Regidor(a) de Emprendimiento y Actividades Productivas', placeholder: 'Nombres y Apellidos completos', req: true },
-  { key: 'regidor_derechos', label: 'Regidor(a) de Derechos del Niño, Niña y Adolescente', placeholder: 'Nombres y Apellidos completos', req: true },
-  { key: 'regidor_comunicacion', label: 'Regidor(a) de Comunicación y Tecnologías de la Información', placeholder: 'Nombres y Apellidos completos', req: true },
+  { key: 'alcalde', label: '2.1 Alcalde(sa)', placeholder: 'Nombres y Apellidos completos del candidato a Alcalde(sa)', req: true },
+  { key: 'teniente', label: '2.2 Teniente Alcalde(sa)', placeholder: 'Nombres y Apellidos completos del Teniente Alcalde', req: true },
+  { key: 'regidor_educacion', label: '2.3 Regidor(a) de Educación', placeholder: 'Nombres y Apellidos completos', req: true },
+  { key: 'regidor_derechos', label: '2.4 Regidor(a) de Derecho', placeholder: 'Nombres y Apellidos completos', req: true },
+  { key: 'regidor_salud', label: '2.5 Regidor(a) de Bienestar (Salud y Medio Ambiente)', placeholder: 'Nombres y Apellidos completos', req: true },
+  { key: 'regidor_emprendimiento', label: 'Regidor(a) de Emprendimiento (Opcional)', placeholder: 'Nombres y Apellidos (si su directiva lo incluye)', req: false },
+  { key: 'regidor_comunicacion', label: 'Regidor(a) de Comunicación y Tecnologías (Opcional)', placeholder: 'Nombres y Apellidos (si su directiva lo incluye)', req: false },
 ];
 
 const CandidateSelfRegistration = () => {
@@ -247,6 +247,7 @@ const CandidateSelfRegistration = () => {
       const gradosFaltantes = [];
 
       CARGOS_LISTA.forEach(cargo => {
+        if (!cargo.req) return; // Permite directivas de 5 integrantes según Modelo Oficial MINEDU
         const nombreVal = (formData[cargo.key] || '').trim();
         const gradoVal = (formData[`${cargo.key}_grado`] || '').trim();
 
@@ -825,9 +826,33 @@ const CandidateSelfRegistration = () => {
             <div>
               <h2 className="text-base font-black text-slate-900">Propuestas y Compromisos</h2>
               <p className="text-xs text-slate-500">
-                Escribe las principales iniciativas que tu lista ofrece a los estudiantes.
+                Escribe las principales iniciativas que tu lista ofrece a los estudiantes basadas en el Modelo Oficial MINEDU.
               </p>
             </div>
+          </div>
+
+          {/* Banner con plantilla oficial del MINEDU para descargar */}
+          <div className="mb-5 p-4 rounded-2xl bg-blue-50/80 border border-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <FileText size={20} />
+              </div>
+              <div>
+                <h4 className="text-xs font-black text-blue-950 uppercase tracking-wide">Modelo Oficial MINEDU · Plan de Trabajo</h4>
+                <p className="text-[11px] text-blue-800 font-medium">
+                  Usa la plantilla oficial "Somos Pares" para redactar tus objetivos y acciones generales.
+                </p>
+              </div>
+            </div>
+            <a
+              href="/static/docs/Modelo_Plan_de_Trabajo_Municipio_Escolar_MINEDU.pdf"
+              target="_blank"
+              rel="noopener noreferrer"
+              download="Modelo_Plan_de_Trabajo_Municipio_Escolar_MINEDU.pdf"
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition-colors shrink-0 cursor-pointer"
+            >
+              <Download size={14} /> Descargar Formato PDF
+            </a>
           </div>
 
           <div className="space-y-1.5">

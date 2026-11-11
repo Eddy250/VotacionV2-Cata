@@ -58,7 +58,8 @@ const AppContent = ({ voter, setVoter, isDocenteMode, setIsDocenteMode }) => {
   return (
     <Routes>
       {/* 
-        1. PORTAL INFORMATIVO (Página Principal de Difusión / Enlace del QR)
+        1. URNA PRINCIPAL UNIVERSAL (Página Principal Directa para el Estudiante)
+        El portal informativo se conserva en /portal para futuras elecciones.
       */}
       <Route 
         path="/" 
@@ -66,7 +67,7 @@ const AppContent = ({ voter, setVoter, isDocenteMode, setIsDocenteMode }) => {
           isDocenteMode ? (
             <Admin onLogoutDocente={handleLogoutDocente} />
           ) : (
-            <Portal />
+            <Login setVoter={setVoter} forcedSede="universal" />
           )
         } 
       />
@@ -74,19 +75,19 @@ const AppContent = ({ voter, setVoter, isDocenteMode, setIsDocenteMode }) => {
       <Route path="/portal/*" element={<Portal />} />
 
       {/* 
-        2. URNA SEDE CENTRAL (Mesa de votación en Sede Central)
+        2. CABINA DE VOTACIÓN UNIVERSAL
       */}
       <Route 
-        path="/Urna-Central" 
-        element={<Login setVoter={setVoter} forcedSede="central" />} 
-      />
-      <Route 
         path="/Urna" 
-        element={<Login setVoter={setVoter} forcedSede="central" />} 
+        element={<Login setVoter={setVoter} forcedSede="universal" />} 
       />
       <Route 
         path="/urna" 
-        element={<Login setVoter={setVoter} forcedSede="central" />} 
+        element={<Login setVoter={setVoter} forcedSede="universal" />} 
+      />
+      <Route 
+        path="/Urna-Universal" 
+        element={<Login setVoter={setVoter} forcedSede="universal" />} 
       />
 
       {/* 

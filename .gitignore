@@ -13,6 +13,7 @@ dist/
 find_pass_temp.php
 scratch/
 check_voters.php
+scratch_*.py
 
 # Archivos de sistema
 .DS_Store

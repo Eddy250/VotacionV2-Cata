@@ -16,3 +16,76 @@
   border: 1px solid rgba(255, 255, 255, 0.5);
   box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
 }
+
+/* ======================================================== */
+/* AISLAMIENTO TOTAL DE IMPRESIÓN PARA ACTAS OFICIALES ONPE */
+/* ======================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 6mm 6mm;
+  }
+
+  /* Ocultar la aplicación completa y su interfaz cuando el modal de actas está abierto */
+  body.actas-modal-open #root,
+  body.actas-modal-open > #root {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    max-height: 0 !important;
+    overflow: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+
+  body.actas-modal-open {
+    background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Mostrar exclusivamente el contenedor portal de las actas */
+  #onpe-actas-portal {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+
+  /* Ocultar barras de herramientas, modales y fondos */
+  .no-print,
+  .print\:hidden {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+  }
+
+  /* Contenedor de hoja A4 estricto: evita desbordes y división de firmas */
+  .acta-page {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    box-sizing: border-box !important;
+    background: #ffffff !important;
+    margin: 0 auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Saltos de página exactos */
+  .acta-page-break,
+  .print\:page-break-after-always {
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+
+  .acta-avoid-break {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+}

@@ -3,7 +3,7 @@ import api, { getAssetUrl } from '../api';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ShieldCheck, Users, Megaphone, FileText, ChevronDown, ChevronUp,
-  Star, ArrowLeft, FileCode, Download, X, ExternalLink
+  Star, ArrowLeft, ArrowRight, FileCode, Download, X, ExternalLink
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import logoColegioAzul from '../assets/logo-colegio-azul.png';
@@ -283,14 +283,25 @@ const Portal = () => {
         />
       </div>
 
-      {/* Header Institucional Azul Centrado */}
-      <div style={{ backgroundColor: BLUE }} className="w-full py-4 px-6 text-center shadow-md relative z-10">
-        <h1 className="text-white font-black text-lg sm:text-2xl tracking-tight uppercase leading-snug">
-          Colegio Adventista Túpac Amaru
-        </h1>
-        <p className="text-blue-200 text-xs sm:text-sm font-semibold tracking-wide mt-1">
-          Juliaca · Portal Oficial de Campaña Estudiantil 2026
-        </p>
+      {/* Header Institucional Azul Centrado con Acceso a la Cabina */}
+      <div style={{ backgroundColor: BLUE }} className="w-full py-3.5 px-6 shadow-md relative z-10 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="text-center sm:text-left">
+          <h1 className="text-white font-black text-lg sm:text-2xl tracking-tight uppercase leading-snug">
+            Colegio Adventista Túpac Amaru
+          </h1>
+          <p className="text-blue-200 text-xs sm:text-sm font-semibold tracking-wide mt-0.5">
+            Juliaca · Portal Oficial de Campaña Estudiantil 2026
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-blue-900 hover:bg-blue-50 font-black text-xs shadow-md transition-all cursor-pointer shrink-0"
+        >
+          <span>🗳️ Ingresar a Votar (Cabina)</span>
+          <ArrowRight size={14} />
+        </button>
       </div>
 
       {/* Título de la Sección */}

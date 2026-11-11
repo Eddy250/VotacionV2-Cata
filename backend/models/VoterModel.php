@@ -193,9 +193,9 @@ function _getStudentsFilteredFromDB($sedeSlug, $ngs = null, $estado = 'todos', $
 
     if ($nivel && $nivel !== 'todos') {
         if (strtolower($nivel) === 'secundaria') {
-            $where[] = "(nivel = 'Secundaria' OR (grado LIKE '%SEC%' OR ngs LIKE '%SEC%' OR ngs LIKE '%A_O%'))";
+            $where[] = "(LOWER(nivel) = 'secundaria' OR ((nivel IS NULL OR nivel = '') AND (grado LIKE '%SEC%' OR ngs LIKE '%SEC%' OR ngs LIKE '%AÑO%' OR ngs LIKE '%ANO%')))";
         } elseif (strtolower($nivel) === 'primaria') {
-            $where[] = "(nivel = 'Primaria' OR (grado NOT LIKE '%SEC%' AND ngs NOT LIKE '%SEC%' AND ngs NOT LIKE '%A_O%'))";
+            $where[] = "(LOWER(nivel) = 'primaria' OR ((nivel IS NULL OR nivel = '') AND (grado NOT LIKE '%SEC%' AND ngs NOT LIKE '%SEC%' AND ngs NOT LIKE '%AÑO%' AND ngs NOT LIKE '%ANO%')))";
         }
     }
 
@@ -282,25 +282,56 @@ function importarLoteAlumnos($listaAlumnos, $sedeDefault = 'Sede Central') {
             $ngs = isset($al['ngs']) ? strtoupper(trim((string)$al['ngs'])) : null;
             $sede = $targetSedeName;
             $email = isset($al['email']) ? trim((string)$al['email']) : null;
+            $nivel = isset($al['nivel']) ? trim((string)$al['nivel']) : null;
 
-            // Extraer grado y sección si no vienen explícitos pero ngs tiene formato
-            if ((!$grado || !$seccion) && !empty($ngs)) {
+            // Extraer grado, sección y nivel si no vienen explícitos o ngs tiene formato corto tipo P2B, S3A, C1B
+            if ((!$grado || !$seccion || strtoupper($grado) === 'GENERAL') && !empty($ngs)) {
                 $ngsUpper = mb_strtoupper($ngs, 'UTF-8');
-                if (!$grado) {
-                    if (strpos($ngsUpper, 'PRIMER') !== false || preg_match('/\b1\b|1°|1º/u', $ngsUpper)) $grado = '1°';
-                    elseif (strpos($ngsUpper, 'SEGUND') !== false || preg_match('/\b2\b|2°|2º/u', $ngsUpper)) $grado = '2°';
-                    elseif (strpos($ngsUpper, 'TERCER') !== false || preg_match('/\b3\b|3°|3º/u', $ngsUpper)) $grado = '3°';
-                    elseif (strpos($ngsUpper, 'CUART') !== false || preg_match('/\b4\b|4°|4º/u', $ngsUpper)) $grado = '4°';
-                    elseif (strpos($ngsUpper, 'QUINT') !== false || preg_match('/\b5\b|5°|5º/u', $ngsUpper)) $grado = '5°';
-                    elseif (strpos($ngsUpper, 'SEXT') !== false || preg_match('/\b6\b|6°|6º/u', $ngsUpper)) $grado = '6°';
+                $cleanNgsCode = preg_replace('/[\s\-_.]/u', '', $ngsUpper);
+
+                // 1. Patrón oficial 3 caracteres: P2B, S3A, C1B, I3A, K4B
+                if (preg_match('/^([PSCIK])([1-6])([A-ZÚ])$/iu', $cleanNgsCode, $m3)) {
+                    $pfx = strtoupper($m3[1]);
+                    $gNum = $m3[2];
+                    $sec = strtoupper($m3[3]);
+                    if ($pfx === 'I' || $pfx === 'K') {
+                        continue; // Omitir inicial
+                    }
+                    $grado = "{$gNum}°";
+                    $seccion = ($sec === 'U' || $sec === 'Ú') ? 'ÚNICA' : $sec;
+                    if (!$nivel || strtoupper($nivel) === 'GENERAL') {
+                        $nivel = ($pfx === 'P') ? 'Primaria' : 'Secundaria';
+                    }
+                    $ngs = "{$grado} {$seccion} - " . strtoupper($nivel);
                 }
-                if (!$seccion) {
-                    if (preg_match('/(?:SECCI[OÓ]N|SEC\.?|AULA)\s*[:\-]?\s*([A-E])\b/u', $ngsUpper, $sm)) {
-                        $seccion = $sm[1];
-                    } elseif (preg_match('/[1-6]\s*[\-_°º]?\s*([A-E])\b/u', $ngsUpper, $sm)) {
-                        $seccion = $sm[1];
-                    } else {
-                        $seccion = 'ÚNICA';
+                // 2. Patrón 2 caracteres: 2B, 3A, 4C
+                elseif (preg_match('/^([1-6])([A-ZÚ])$/iu', $cleanNgsCode, $m2)) {
+                    $gNum = $m2[1];
+                    $sec = strtoupper($m2[2]);
+                    $grado = "{$gNum}°";
+                    $seccion = ($sec === 'U' || $sec === 'Ú') ? 'ÚNICA' : $sec;
+                    if (!$nivel || strtoupper($nivel) === 'GENERAL') {
+                        $nivel = ($gNum === '6') ? 'Primaria' : 'Primaria';
+                    }
+                    $ngs = "{$grado} {$seccion} - " . strtoupper($nivel);
+                }
+                else {
+                    if (!$grado || strtoupper($grado) === 'GENERAL') {
+                        if (strpos($ngsUpper, 'PRIMER') !== false || preg_match('/\b1\b|1°|1º/u', $ngsUpper)) $grado = '1°';
+                        elseif (strpos($ngsUpper, 'SEGUND') !== false || preg_match('/\b2\b|2°|2º/u', $ngsUpper)) $grado = '2°';
+                        elseif (strpos($ngsUpper, 'TERCER') !== false || preg_match('/\b3\b|3°|3º/u', $ngsUpper)) $grado = '3°';
+                        elseif (strpos($ngsUpper, 'CUART') !== false || preg_match('/\b4\b|4°|4º/u', $ngsUpper)) $grado = '4°';
+                        elseif (strpos($ngsUpper, 'QUINT') !== false || preg_match('/\b5\b|5°|5º/u', $ngsUpper)) $grado = '5°';
+                        elseif (strpos($ngsUpper, 'SEXT') !== false || preg_match('/\b6\b|6°|6º/u', $ngsUpper)) $grado = '6°';
+                    }
+                    if (!$seccion || strtoupper($seccion) === 'ÚNICA') {
+                        if (preg_match('/(?:SECCI[OÓ]N|SEC\.?|AULA)\s*[:\-]?\s*([A-E])\b/u', $ngsUpper, $sm)) {
+                            $seccion = $sm[1];
+                        } elseif (preg_match('/[1-6]\s*[\-_°º]?\s*([A-E])\b/u', $ngsUpper, $sm)) {
+                            $seccion = $sm[1];
+                        } else {
+                            $seccion = 'ÚNICA';
+                        }
                     }
                 }
             }

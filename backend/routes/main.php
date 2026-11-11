@@ -31,25 +31,49 @@ function handle_login() {
 
     // Sede de la cabina actual
     $activeSede = get_active_sede();
-    $slug = normalize_sede_slug($activeSede);
+    $rawSedeHeader = !empty($_SERVER['HTTP_X_SEDE']) ? strtolower(trim($_SERVER['HTTP_X_SEDE'])) : '';
+    $isUniversalCabina = ($rawSedeHeader === 'universal' || $rawSedeHeader === '' || $activeSede === 'universal');
+
+    $slug = ($isUniversalCabina) ? 'central' : normalize_sede_slug($activeSede);
     $sedeName = normalize_sede_name($slug);
     set_active_db($slug);
 
     $voter = getVoterByCodigo($codigo, $slug);
     if (!$voter) {
-        // Verificar si el alumno pertenece a la otra sede para guiarlo
+        // Verificar si el alumno pertenece a la otra sede
         $otherSlug = ($slug === 'central') ? 'jerusalen' : 'central';
         $otherName = normalize_sede_name($otherSlug);
         $otherVoter = getVoterByCodigo($codigo, $otherSlug);
         if ($otherVoter) {
-            http_response_code(403);
-            echo json_encode([
-                'error' => "El estudiante {$otherVoter['nombre']} está registrado en {$otherName}. Por favor dirígete a una cabina asignada a {$otherName} para emitir tu voto."
-            ]);
+            if ($isUniversalCabina) {
+                // En Urna Universal, se atiende automáticamente a alumnos de ambas sedes
+                $voter = $otherVoter;
+                $slug = $otherSlug;
+                $sedeName = $otherName;
+                set_active_db($slug);
+            } else {
+                http_response_code(403);
+                echo json_encode([
+                    'error' => "El estudiante {$otherVoter['nombre']} está registrado en {$otherName}. Por favor dirígete a una cabina asignada a {$otherName} para emitir tu voto."
+                ]);
+                return;
+            }
+        } else {
+            http_response_code(404);
+            echo json_encode(['error' => "DNI no encontrado en el padrón electoral. Por favor, consulta con la mesa de votación docente."]);
             return;
         }
-        http_response_code(404);
-        echo json_encode(['error' => "DNI no encontrado en el padrón de {$sedeName}. Consulta con la mesa de votación."]);
+    }
+
+    // Validación dinámica de Jornada Activa
+    $checkJornada = isVoterJornadaHabilitada($voter);
+    if (!$checkJornada['habilitado']) {
+        http_response_code(403);
+        echo json_encode([
+            'error' => $checkJornada['mensaje'],
+            'bloqueado_por_jornada' => true,
+            'jornada' => $checkJornada['jornada']
+        ]);
         return;
     }
 
