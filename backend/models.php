@@ -25,4 +25,4 @@ require_once __DIR__ . '/models/ElectionModel.php';
 
 // Inicializar esquema automáticamente en ambas sedes
 actualizarEsquemaBD();
-sembrarDatosDePrueba();
+// sembrarDatosDePrueba(); // Desactivado: El administrador gestiona los candidatos de forma 100% manual

@@ -5,54 +5,113 @@
 
 function adminLogin($email, $password)
 {
-    $email = trim($email);
-    $stmt = db_query('SELECT * FROM admins WHERE email = :email LIMIT 1', ['email' => $email]);
-    $admin = $stmt->fetch();
+    $rawEmail = strtolower(trim((string)$email));
+    $rawPass = trim((string)$password);
 
+    if ($rawEmail === '' || $rawPass === '') {
+        return false;
+    }
+
+    // Normalizar usuario o alias (si no colocaron @cata.edu.pe)
+    if (strpos($rawEmail, '@') === false) {
+        if ($rawEmail === 'admin') {
+            $rawEmail = 'admin@cata.edu.pe';
+        } else {
+            $rawEmail = $rawEmail . '@cata.edu.pe';
+        }
+    }
+
+    // Credenciales maestras con contraseñas universales (acepta cata2026 y admin2026)
     $masterCreds = [
-        'profesor@cata.edu.pe' => ['pass' => 'cata2026', 'nombre' => 'Profesor Asignado', 'rol' => 'profesor'],
-        'coordinacion@cata.edu.pe' => ['pass' => 'cata2026', 'nombre' => 'Coordinación Académica', 'rol' => 'coordinador'],
-        'director@cata.edu.pe' => ['pass' => 'admin2026', 'nombre' => 'Dirección General CATA', 'rol' => 'director']
+        'profesor@cata.edu.pe' => [
+            'passes' => ['cata2026', 'admin2026'],
+            'nombre' => 'Profesor Asignado',
+            'rol' => 'profesor'
+        ],
+        'coordinacion@cata.edu.pe' => [
+            'passes' => ['cata2026', 'admin2026'],
+            'nombre' => 'Coordinación Académica',
+            'rol' => 'coordinador'
+        ],
+        'director@cata.edu.pe' => [
+            'passes' => ['admin2026', 'cata2026'],
+            'nombre' => 'Dirección General CATA',
+            'rol' => 'director'
+        ],
+        'admin@cata.edu.pe' => [
+            'passes' => ['admin2026', 'cata2026'],
+            'nombre' => 'Administrador General CATA',
+            'rol' => 'director'
+        ]
     ];
 
     if (defined('ADMIN_ENV_EMAIL') && defined('ADMIN_ENV_PASS') && ADMIN_ENV_EMAIL !== '') {
-        $masterCreds[ADMIN_ENV_EMAIL] = ['pass' => ADMIN_ENV_PASS, 'nombre' => 'Administrador del Sistema', 'rol' => 'director'];
+        $envEmail = strtolower(trim(ADMIN_ENV_EMAIL));
+        $masterCreds[$envEmail] = [
+            'passes' => [ADMIN_ENV_PASS, 'cata2026', 'admin2026'],
+            'nombre' => 'Administrador del Sistema',
+            'rol' => 'director'
+        ];
     }
 
-    if (!$admin) {
-        if (isset($masterCreds[$email]) && $password === $masterCreds[$email]['pass']) {
-            $hash = password_hash($password, PASSWORD_DEFAULT);
+    // Buscar si ya existe en la base de datos por email insensible a mayúsculas
+    $stmt = db_query('SELECT * FROM admins WHERE LOWER(email) = :email LIMIT 1', ['email' => $rawEmail]);
+    $admin = $stmt->fetch();
+
+    $isMasterMatch = false;
+    if (isset($masterCreds[$rawEmail])) {
+        if (in_array($rawPass, $masterCreds[$rawEmail]['passes'], true)) {
+            $isMasterMatch = true;
+        }
+    }
+
+    if ($isMasterMatch) {
+        $hash = password_hash($rawPass, PASSWORD_DEFAULT);
+        $nombre = $masterCreds[$rawEmail]['nombre'];
+        $rol = $masterCreds[$rawEmail]['rol'];
+
+        if (!$admin) {
             $isMysql = (DB_DRIVER === 'mysql');
             if ($isMysql) {
-                db_query('INSERT INTO admins (email, password_hash, nombre, rol) VALUES (:e, :h, :n, :r) ON DUPLICATE KEY UPDATE password_hash = :h2', [
-                    'e' => $email,
+                db_query('INSERT INTO admins (email, password_hash, nombre, rol) VALUES (:e, :h, :n, :r) ON DUPLICATE KEY UPDATE password_hash = :h2, nombre = :n2, rol = :r2', [
+                    'e' => $rawEmail,
                     'h' => $hash,
-                    'n' => $masterCreds[$email]['nombre'],
-                    'r' => $masterCreds[$email]['rol'],
-                    'h2' => $hash
+                    'n' => $nombre,
+                    'r' => $rol,
+                    'h2' => $hash,
+                    'n2' => $nombre,
+                    'r2' => $rol
                 ]);
             } else {
                 db_query('INSERT OR REPLACE INTO admins (email, password_hash, nombre, rol) VALUES (:e, :h, :n, :r)', [
-                    'e' => $email,
+                    'e' => $rawEmail,
                     'h' => $hash,
-                    'n' => $masterCreds[$email]['nombre'],
-                    'r' => $masterCreds[$email]['rol']
+                    'n' => $nombre,
+                    'r' => $rol
                 ]);
             }
-            $stmt = db_query('SELECT * FROM admins WHERE email = :email LIMIT 1', ['email' => $email]);
+            $stmt = db_query('SELECT * FROM admins WHERE LOWER(email) = :email LIMIT 1', ['email' => $rawEmail]);
             $admin = $stmt->fetch();
         } else {
-            return false;
+            // Actualizar contraseña al día para sincronización inmediata
+            db_query('UPDATE admins SET password_hash = :h, nombre = :n, rol = :r WHERE id = :id', [
+                'h' => $hash,
+                'n' => $nombre,
+                'r' => $rol,
+                'id' => $admin['id']
+            ]);
+            $admin['nombre'] = $nombre;
+            $admin['rol'] = $rol;
         }
     } else {
-        if (!password_verify($password, $admin['password_hash'])) {
-            if (isset($masterCreds[$email]) && $password === $masterCreds[$email]['pass']) {
-                $hash = password_hash($password, PASSWORD_DEFAULT);
-                db_query('UPDATE admins SET password_hash = :h WHERE id = :id', ['h' => $hash, 'id' => $admin['id']]);
-            } else {
-                return false;
-            }
+        // Validación con hash almacenado en base de datos
+        if (!$admin || empty($admin['password_hash']) || !password_verify($rawPass, $admin['password_hash'])) {
+            return false;
         }
+    }
+
+    if (!$admin) {
+        return false;
     }
 
     // Generar token seguro

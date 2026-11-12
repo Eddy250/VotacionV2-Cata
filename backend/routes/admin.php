@@ -317,14 +317,6 @@ function handle_admin_candidato_manage($id) {
     }
 
     if ($method === 'DELETE') {
-        $c = getCandidatoById($id);
-        if ($c && (preg_match('/blanco/i', $c['nombre'] ?? '') || preg_match('/nulo/i', $c['nombre'] ?? ''))) {
-            http_response_code(400);
-            echo json_encode([
-                'error' => 'No es posible eliminar la opción oficial del sistema (Voto en Blanco / Nulo), ya que es un requisito electoral obligatorio en todas las cédulas.'
-            ]);
-            return;
-        }
         deleteCandidato($id);
         echo json_encode([
             'success' => true,

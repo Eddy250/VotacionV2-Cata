@@ -622,25 +622,23 @@ const CandidateManager = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
         {candidatos
           .filter(c => {
-            const isSystem = /blanco/i.test(c.nombre) || /nulo/i.test(c.nombre) || (c.sede && c.sede.includes('Universal'));
-            if (isSystem) return true;
             if (filterSede === 'todos') return true;
             if (filterSede === 'Central - Primaria') {
-              const isCentral = !c.sede || c.sede.includes('Central') || c.sede.includes('Principal');
+              const isCentral = !c.sede || c.sede.includes('Central') || c.sede.includes('Principal') || (c.sede && c.sede.includes('Universal'));
               return isCentral && (c.nivel === 'Primaria' || c.nivel === 'General' || !c.nivel);
             }
             if (filterSede === 'Central - Secundaria') {
-              const isCentral = !c.sede || c.sede.includes('Central') || c.sede.includes('Principal');
+              const isCentral = !c.sede || c.sede.includes('Central') || c.sede.includes('Principal') || (c.sede && c.sede.includes('Universal'));
               return isCentral && (c.nivel === 'Secundaria' || c.nivel === 'General' || !c.nivel);
             }
-            if (filterSede === 'Sede Central') return !c.sede || c.sede.includes('Central') || c.sede.includes('Principal');
-            if (filterSede === 'Sede Jerusalén') return c.sede && c.sede.includes('Jerusal');
+            if (filterSede === 'Sede Central') return !c.sede || c.sede.includes('Central') || c.sede.includes('Principal') || (c.sede && c.sede.includes('Universal'));
+            if (filterSede === 'Sede Jerusalén') return (c.sede && c.sede.includes('Jerusal')) || (c.sede && c.sede.includes('Universal'));
             return true;
           })
           .map(c => {
-            const isSystem = /blanco/i.test(c.nombre) || /nulo/i.test(c.nombre) || (c.sede && c.sede.includes('Universal'));
+            const isSystem = false;
             return (
-              <div key={c.id} className={`bg-white rounded-2xl shadow-sm border ${isSystem ? 'border-blue-200 ring-1 ring-blue-100' : 'border-slate-100'} overflow-hidden flex flex-col group hover:shadow-md transition-shadow`}>
+              <div key={c.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col group hover:shadow-md transition-shadow">
                 <div className="h-44 bg-slate-100 relative">
                   {c.logo ? (
                     <div className="w-full h-full flex items-center justify-center p-5 bg-slate-50">
@@ -860,22 +858,12 @@ const CandidateManager = () => {
                   >
                     <Edit3 size={14} /> Editar
                   </button>
-                  {isSystem ? (
-                    <button
-                      disabled
-                      className="py-3 px-2 text-center font-bold text-slate-400 bg-slate-50/70 flex items-center justify-center gap-1.5 text-xs cursor-not-allowed select-none"
-                      title="Esta opción es obligatoria por ley electoral y no se puede eliminar."
-                    >
-                      <Lock size={13} className="text-slate-400" /> Obligatorio
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => handleDelete(c.id)}
-                      className="py-3 px-2 text-center font-bold text-red-400 hover:text-red-600 hover:bg-red-50 flex items-center justify-center gap-1.5 transition-colors text-xs cursor-pointer"
-                    >
-                      <Trash2 size={14} /> Eliminar
-                    </button>
-                  )}
+                  <button
+                    onClick={() => handleDelete(c.id)}
+                    className="py-3 px-2 text-center font-bold text-red-400 hover:text-red-600 hover:bg-red-50 flex items-center justify-center gap-1.5 transition-colors text-xs cursor-pointer"
+                  >
+                    <Trash2 size={14} /> Eliminar
+                  </button>
                 </div>
               </div>
             );

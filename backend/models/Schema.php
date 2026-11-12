@@ -447,13 +447,6 @@ function sembrarAdminsPorDefecto()
 
 function sembrarDatosDePrueba()
 {
-    // Garantizar únicamente la existencia de la opción obligatoria del sistema (Voto en Blanco universal)
-    $countBlanco = (int) db_query("SELECT COUNT(*) FROM candidatos WHERE LOWER(nombre) LIKE '%blanco%'")->fetchColumn();
-    if ($countBlanco === 0) {
-        insertCandidato('Voto en Blanco', 'Opción cívica democrática', null, [
-            'sede' => 'Universal',
-            'nivel' => 'General',
-            'color' => '#1B3A8C'
-        ]);
-    }
+    // Los candidatos se gestionan de forma 100% manual por el administrador o docente.
+    // No se auto-insertan registros fijos para permitir total libertad en la edición y borrado.
 }

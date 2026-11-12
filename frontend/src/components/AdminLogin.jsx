@@ -76,18 +76,18 @@ const AdminLogin = ({ onLoginSuccess, onCancel }) => {
 
       <form onSubmit={handleLogin} className="space-y-5">
         <div>
-          <label className="block text-xs font-bold mb-2 uppercase tracking-wider" style={{ color: '#374151' }}>Correo Institucional</label>
+          <label className="block text-xs font-bold mb-2 uppercase tracking-wider" style={{ color: '#374151' }}>Correo Institucional o Usuario</label>
           <div className="relative">
             <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5" style={{ color: '#9CA3AF' }} />
             <input 
-              type="email" 
+              type="text" 
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full pl-12 pr-4 py-3.5 border rounded-xl outline-none transition-all font-semibold shadow-sm"
               style={{ backgroundColor: '#FFFFFF', borderColor: '#D1D5DB', color: '#111827' }}
               onFocus={e => e.target.style.borderColor = BLUE}
               onBlur={e => e.target.style.borderColor = '#D1D5DB'}
-              placeholder="*****@cata.edu.pe"
+              placeholder="profesor@cata.edu.pe o admin"
               required
               autoFocus
             />
@@ -123,6 +123,12 @@ const AdminLogin = ({ onLoginSuccess, onCancel }) => {
             <>Iniciar Sesión <LogIn className="w-5 h-5" /></>
           )}
         </button>
+
+        <div className="pt-1 text-center">
+          <p className="text-[11px] font-semibold text-slate-400">
+            Acceso: <code className="text-blue-900 bg-blue-50 px-1 py-0.5 rounded font-mono">profesor@cata.edu.pe</code> · Clave: <code className="text-blue-900 bg-blue-50 px-1 py-0.5 rounded font-mono">cata2026</code>
+          </p>
+        </div>
 
         {onCancel && (
           <button
